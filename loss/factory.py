@@ -3,7 +3,7 @@ import loss.mean_square_error
 
 LOSSES = {
     "cross_entropy_2d" : loss.cross_entropy_2d.CrossEntropyLoss2d,
-    "mean_square_error" : loss.mean_square_error,
+    "mean_square_error" : loss.mean_square_error.MeanSquareErrorLoss,
 }
 
 def get_loss(name):

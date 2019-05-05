@@ -108,6 +108,7 @@ def train(args):
 
     ## Select CUDA device
     device_ = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+    #device_ = torch.device('cpu')
     LOG.info(device_)
     LOG.info(torch.cuda.get_device_name(0))
 
