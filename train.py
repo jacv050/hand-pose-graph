@@ -33,9 +33,11 @@ import loss.factory
 import network_3d.utils
 import dataset.unrealhands_otf
 
+import time
+
 LOG = logging.getLogger(__name__)
 
-NUM_WORKERS = 8
+NUM_WORKERS = 2 
 """ int: Number of thread workers to use when loading the dataset. """
 
 PALETTE = [
@@ -105,6 +107,8 @@ def train(args):
                                batch_size=args.batch_size,
                                shuffle=True,
                                num_workers=NUM_WORKERS)
+    iterator = iter(train_loader_)
+    print(next(iterator).y.shape)
 
     ## Select CUDA device
     device_ = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
@@ -136,7 +140,6 @@ def train(args):
 
         i = 1
         for batch in train_loader_:
-
             #LOG.info("Training batch {0} out of {1}".format(i, len(train_loader_)))
 
             batch = batch.to(device_)
@@ -153,38 +156,12 @@ def train(args):
         LOG.info("Training loss {0}".format(loss_all))
 
         # Evaluate on training set
-        if epoch % 10 == 0:
+        #if epoch % 10 == 0:
 
-            model_.eval()
-            correct_ = 0
+        #    model_.eval()
+        #    correct_ = 0
 
-            pi_ = 0
-            for batch in train_loader_:
-
-                batch = batch.to(device_)
-                pred_ = model_(batch).max(1)[1]
-                correct_ += pred_.eq(batch.y).sum().item()
-
-                pred_img_ = np.transpose(pred_.reshape((560, 426)), (1, 0))
-                gt_img_ = np.transpose(batch.y.reshape((560, 426)), (1, 0))
-                res_img_ = np.concatenate((pred_img_, gt_img_), axis=1)
-
-                pred_filename_ = "pred/epoch_{:04d}_pred_{:04d}.png".format(epoch, pi_)
-                with open(pred_filename_, "wb") as label_file_:
-
-                    writer_ = png.Writer(width=res_img_.shape[1],
-                                         height=res_img_.shape[0],
-                                         palette=PALETTE,
-                                         bitdepth=8)
-                    res_img_list_ = res_img_.tolist()
-                    writer_.write(label_file_, res_img_list_)
-
-                pi_ += 1
-
-            # TODO: Compute proper batch size based on point cloud size
-            correct_ /= (len(train_loader_) * 237575)
-
-            LOG.info("Training accuracy {0}".format(correct_))
+        #    pi_ = 0
 
     time_end_ = timer()
     LOG.info("Training took {0} seconds".format(time_end_ - time_start_))

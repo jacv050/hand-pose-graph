@@ -12,6 +12,7 @@ import torch
 from torch_geometric.data import Dataset
 from torch_geometric.data import Data
 import sys
+import glob
 
 LOG = logging.getLogger(__name__)
 
@@ -42,7 +43,7 @@ class UnrealHands(Dataset):
                                         cloud['vertex']['z'])), dtype=torch.float).transpose(0, 1)
 
     #graph_y_ = torch.tensor(cloud['vertex']['label'], dtype=torch.long)
-    graph_y_ = torch.tensor(labels, dtype=torch.long)
+    graph_y_ = torch.tensor(labels, dtype=torch.float)
     
     data_ = Data(x = graph_x_, edge_index = graph_edge_index_, pos = graph_pos_, y = graph_y_)
     return data_
@@ -63,9 +64,15 @@ class UnrealHands(Dataset):
 
   @property
   def raw_file_names(self):
-    return ["cloud/" + s for s in os.listdir(self.raw_dir + "/cloud/")]
-    #return [s for s in os.listdir(self.raw_dir + "/cloud/")]
-    #return os.listdir(self.raw_dir + "/cloud/")
+    output = []
+    for scene in os.listdir(self.raw_dir):
+      rpath = scene + "/cloud/"
+      for camera in os.listdir(self.raw_dir + "/" + rpath):
+        crpath = rpath + camera + "/"
+        output += [crpath + s for s in os.listdir(self.raw_dir + "/" + crpath)]
+
+    return output
+    #return ["cloud/" + s for s in os.listdir(self.raw_dir + "/cloud/")]
 
   @property
   def processed_file_names(self):
@@ -102,20 +109,19 @@ class UnrealHands(Dataset):
   def process(self):
     LOG.info("Processing dataset...")
 
-    raw_file_names_ = os.listdir(self.raw_dir + "/cloud/")
-    for p in range(len(raw_file_names_)):
-      path_cloud = self.raw_dir + "/cloud/" + raw_file_names_[p]
-      path_joints = self.raw_dir + "/joints/" + raw_file_names_[p][:len(raw_file_names_[p])-3] + "json"
-      LOG.info("Processing cloud {0} out of {1}".format(p, len(raw_file_names_)))
+    for p in range(len(self.raw_paths)):
+      path_cloud = self.raw_paths[p]
+      path_joints = (path_cloud[:len(path_cloud)-3] + "json").replace("cloud", "joints")
+      LOG.info("Processing cloud {0} out of {1}".format(p, len(path_cloud)))
       LOG.info(path_cloud)
       
       LOG.info(path_joints)
       hands_ = self.read_joints_json(path_joints)
       labels = hands_["left_hand"]+hands_["right_hand"]
-      print(len(labels))
+      #print(labels)
 
       with open(self.raw_paths[p], 'rb') as f:
-
+        print(self.raw_paths[p])
         cloud_ = PlyData.read(f)
         graph_ = self._create_graph(cloud_, self.k, labels)
         torch.save(graph_, os.path.join(self.processed_dir, "unrealhands_k{0}_{1}.pt".format(self.k, p)))
