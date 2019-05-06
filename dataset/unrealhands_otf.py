@@ -11,6 +11,7 @@ import scipy.spatial
 import torch
 from torch_geometric.data import Dataset
 from torch_geometric.data import Data
+import sys
 
 LOG = logging.getLogger(__name__)
 
@@ -28,6 +29,7 @@ class UnrealHands(Dataset):
     tree_ = scipy.spatial.cKDTree(points_)
     
     _, idxs_ = tree_.query(points_, k=k + 1) # Closest point will be the point itself, so k + 1
+
     idxs_ = idxs_[:, 1:] # Remove closest point, which is the point itself
 
     edge_origins_ = np.repeat(np.arange(len(points_)), k)
@@ -46,7 +48,6 @@ class UnrealHands(Dataset):
     return data_
 
   def __init__(self, root, k=3, transform=None, pre_transform=None):
-
     self.k = k
 
     super(UnrealHands, self).__init__(root, transform, pre_transform)
@@ -58,7 +59,7 @@ class UnrealHands(Dataset):
   @property
   def num_classes(self):
     """The number of classes in the dataset."""
-    return 32
+    return 96
 
   @property
   def raw_file_names(self):
@@ -87,21 +88,21 @@ class UnrealHands(Dataset):
           output = []
           iterator = iter(value)
           for root in iterator:
-            output.append(root)
+            #output.append(root)
+            output += root
 
             for finger_list in iterator:
               for bone in finger_list:
-                output.append(bone)
+                #output.append(bone)
+                output += bone
           output_dict[key] = output
 
     return output_dict
 
   def process(self):
-
     LOG.info("Processing dataset...")
 
     raw_file_names_ = os.listdir(self.raw_dir + "/cloud/")
-    print(raw_file_names_)
     for p in range(len(raw_file_names_)):
       path_cloud = self.raw_dir + "/cloud/" + raw_file_names_[p]
       path_joints = self.raw_dir + "/joints/" + raw_file_names_[p][:len(raw_file_names_[p])-3] + "json"
@@ -111,6 +112,7 @@ class UnrealHands(Dataset):
       LOG.info(path_joints)
       hands_ = self.read_joints_json(path_joints)
       labels = hands_["left_hand"]+hands_["right_hand"]
+      print(len(labels))
 
       with open(self.raw_paths[p], 'rb') as f:
 
