@@ -139,6 +139,7 @@ def train(args):
         loss_all = 0
 
         i = 1
+        counter = 0
         for batch in train_loader_:
             #LOG.info("Training batch {0} out of {1}".format(i, len(train_loader_)))
 
@@ -147,13 +148,17 @@ def train(args):
             output_ = model_(batch)
             #loss_ = F.nll_loss(output_, batch.y)
             loss_ = criterion_(output_, batch.y)
-            loss_all += batch.y.size(0) * loss_.item()
+            #print(epoch, loss_.item())
+            counter += batch.y.size(0)
+            #loss_all += batch.y.size(0) * loss_.item()
+            loss_all += loss_.item()
             loss_.backward()
             optimizer_.step()
+            #LOG.info("Training loss {0}".format(loss_all))
 
             i = i+1
 
-        LOG.info("Training loss {0}".format(loss_all))
+        LOG.info("Training loss {0}".format(loss_all/counter))
 
         # Evaluate on training set
         #if epoch % 10 == 0:

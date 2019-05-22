@@ -14,6 +14,8 @@ from torch_geometric.data import Data
 import sys
 import glob
 
+import multiprocessing.dummy as mp
+
 LOG = logging.getLogger(__name__)
 
 class UnrealHands(Dataset):
@@ -75,8 +77,9 @@ class UnrealHands(Dataset):
     #return ["cloud/" + s for s in os.listdir(self.raw_dir + "/cloud/")]
 
   @property
-  def processed_file_names(self):
-    return ["unrealhands_k" + str(self.k) + "_" + str(i) + ".pt" for i in range(len(self.raw_file_names))]
+  def processed_file_names(self):#CAMBIAR ESTO
+    return os.listdir(self.processed_dir)
+    #return ["unrealhands_k" + str(self.k) + "_" + str(i) + ".pt" for i in range(len(self.raw_file_names))]
 
   def __len__(self):
     return len(self.processed_file_names)
@@ -106,13 +109,41 @@ class UnrealHands(Dataset):
 
     return output_dict
 
+  def process_threaded(self, p):
+    path_cloud = self.raw_paths_processed[p]
+    path_joints = (path_cloud[:len(path_cloud)-3] + "json").replace("cloud", "joints")
+    #LOG.info("Processing cloud {0} out of {1}".format(p, len(self.raw_paths_processed)))
+
+    #LOG.info(path_cloud)
+    #LOG.info(path_joints)
+    hands_ = self.read_joints_json(path_joints)
+    labels = hands_["left_hand"]+hands_["right_hand"]
+    #print(labels)
+
+    with open(self.raw_paths_processed[p], 'rb') as f:
+      print(self.raw_paths_processed[p])
+      cloud_ = PlyData.read(f)
+      if(len(cloud_['vertex']['x']) > 0):
+      	graph_ = self._create_graph(cloud_, self.k, labels)
+      	torch.save(graph_, os.path.join(self.processed_dir, "unrealhands_k{0}_{1}.pt".format(self.k, p)))
+
   def process(self):
+    LOG.info("Processing dataset...")
+    self.raw_paths_processed = self.raw_paths
+    p = mp.Pool(12)
+    #p.start()
+    for i, _ in enumerate(p.imap_unordered(self.process_threaded, range(len(self.raw_paths_processed)), 1)):
+      sys.stderr.write('\rdone {0:%}\n'.format(i/len(self.raw_paths_processed)))
+    p.close()
+    p.join()
+
+  def process_deprecated(self):
     LOG.info("Processing dataset...")
 
     for p in range(len(self.raw_paths)):
       path_cloud = self.raw_paths[p]
       path_joints = (path_cloud[:len(path_cloud)-3] + "json").replace("cloud", "joints")
-      LOG.info("Processing cloud {0} out of {1}".format(p, len(path_cloud)))
+      LOG.info("Processing cloud {0} out of {1}".format(p, len(self.raw_paths)))
       LOG.info(path_cloud)
       
       LOG.info(path_joints)
@@ -127,6 +158,6 @@ class UnrealHands(Dataset):
         torch.save(graph_, os.path.join(self.processed_dir, "unrealhands_k{0}_{1}.pt".format(self.k, p)))
 
   def get(self, idx):
-
     data_ = torch.load(os.path.join(self.processed_dir, "unrealhands_k{0}_{1}.pt".format(self.k, idx)))
+    #data_ = torch.load(os.path.join(self.processed_dir, "unrealhands_k{0}_{1}.pt".format(self.k, idx)))
     return data_
