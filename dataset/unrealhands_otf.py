@@ -14,6 +14,8 @@ from torch_geometric.data import Data
 import sys
 import glob
 
+import copy
+
 import multiprocessing.dummy as mp
 
 LOG = logging.getLogger(__name__)
@@ -28,29 +30,43 @@ class UnrealHands(Dataset):
 
     points_ = np.transpose(np.vstack((cloud['vertex']['x'],
                                       cloud['vertex']['y'],
-                                      cloud['vertex']['z'])), (1, 0))
+                                      cloud['vertex']['z'])), (1,0))
+
     tree_ = scipy.spatial.cKDTree(points_)
-    
+
     _, idxs_ = tree_.query(points_, k=k + 1) # Closest point will be the point itself, so k + 1
 
     idxs_ = idxs_[:, 1:] # Remove closest point, which is the point itself
 
+    if len(cloud['vertex']['x']) > self.aux_max:
+      self.aux_max = len(cloud['vertex']['x'])
+      print("\n\n{}\n\n".format(self.aux_max))
+
     edge_origins_ = np.repeat(np.arange(len(points_)), k)
     edge_ends_ = np.reshape(idxs_, (-1))
+    #print(edge_ends_.shape)
 
     graph_edge_index_ = torch.tensor([edge_origins_, edge_ends_], dtype=torch.long)
-    
+
     graph_pos_ = torch.tensor(np.vstack((cloud['vertex']['x'],
                                         cloud['vertex']['y'],
                                         cloud['vertex']['z'])), dtype=torch.float).transpose(0, 1)
 
     #graph_y_ = torch.tensor(cloud['vertex']['label'], dtype=torch.long)
     graph_y_ = torch.tensor(labels, dtype=torch.float)
-    
+
+    #FIX SIZE
+    diff = 1395 - len(cloud['vertex']['x'])
+    graph_x_ = torch.cat((graph_x_, torch.tensor(np.repeat([[255,255,255]], diff, axis=0), dtype=torch.float)), 0)
+    graph_pos_ = torch.cat((graph_pos_, torch.zeros((diff,3))))
+    #FIXED
+
     data_ = Data(x = graph_x_, edge_index = graph_edge_index_, pos = graph_pos_, y = graph_y_)
     return data_
 
   def __init__(self, root, k=3, transform=None, pre_transform=None):
+    self.cloud_folder = "cloud_sampled"
+    self.aux_max = 0
     self.k = k
 
     super(UnrealHands, self).__init__(root, transform, pre_transform)
@@ -68,18 +84,17 @@ class UnrealHands(Dataset):
   def raw_file_names(self):
     output = []
     for scene in os.listdir(self.raw_dir):
-      rpath = scene + "/cloud/"
+      rpath = scene + "/" + self.cloud_folder + "/"
       for camera in os.listdir(self.raw_dir + "/" + rpath):
         crpath = rpath + camera + "/"
         output += [crpath + s for s in os.listdir(self.raw_dir + "/" + crpath)]
-
     return output
     #return ["cloud/" + s for s in os.listdir(self.raw_dir + "/cloud/")]
 
   @property
   def processed_file_names(self):#CAMBIAR ESTO
-    return os.listdir(self.processed_dir)
-    #return ["unrealhands_k" + str(self.k) + "_" + str(i) + ".pt" for i in range(len(self.raw_file_names))]
+    #return os.listdir(self.processed_dir)
+    return ["unrealhands_k" + str(self.k) + "_" + str(i) + ".pt" for i in range(len(self.raw_file_names))]
 
   def __len__(self):
     return len(self.processed_file_names)
@@ -109,14 +124,47 @@ class UnrealHands(Dataset):
 
     return output_dict
 
+  def read_joints_json2(self, input_file):
+    output_dict = {}
+
+    with open(input_file) as f:
+        joints = json.load(f)
+
+        for key, value in joints.items():
+          output = []
+          iterator = iter(value)
+          for root in iterator:
+            #output.append(root)
+            output += root
+            nproot = np.array(root)
+
+            for finger_list in iterator:
+              iterator2 = iter(finger_list)
+              aux = np.array(next(iterator2)) + nproot
+              output += aux.tolist()
+              for bone in iterator2:
+                #output.append(bone)
+                aux = np.array(bone)+aux
+                output += aux.tolist()
+          output_dict[key] = output
+
+    return output_dict
+
+  def generate_listofpoints(self, labels):
+    output = []
+    for i in range(0,len(labels),3):
+      output.append(labels[i:i+3])
+
+    print(output)
+
   def process_threaded(self, p):
     path_cloud = self.raw_paths_processed[p]
-    path_joints = (path_cloud[:len(path_cloud)-3] + "json").replace("cloud", "joints")
+    path_joints = (path_cloud[:len(path_cloud)-3] + "json").replace(self.cloud_folder, "joints")
     #LOG.info("Processing cloud {0} out of {1}".format(p, len(self.raw_paths_processed)))
 
     #LOG.info(path_cloud)
     #LOG.info(path_joints)
-    hands_ = self.read_joints_json(path_joints)
+    hands_ = self.read_joints_json2(path_joints)
     labels = hands_["left_hand"]+hands_["right_hand"]
     #print(labels)
 
