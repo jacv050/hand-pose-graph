@@ -131,19 +131,24 @@ def train(args):
     LOG.info(criterion_)
 
     ## Optimizer
-    optimizer_ = torch.optim.Adam(model_.parameters(), lr=args.lr, weight_decay=5e-4)
-    #optimizer_ = torch.optim.SGD(model_.parameters(), lr=args.lr, momentum=0.9)
+    #optimizer_ = torch.optim.Adam(model_.parameters(), lr=args.lr, weight_decay=5e-4)
+    optimizer_ = torch.optim.SGD(model_.parameters(), lr=args.lr, momentum=0.9)
     LOG.info(optimizer_)
 
-    time_start_ = timer()
-    for epoch in range(args.epochs):
+    mepoch = 179
+    checkpoint = torch.load('models/model_{}.pt'.format(str(mepoch-1).zfill(3)))
+    model_.load_state_dict(checkpoint)
 
+    time_start_ = timer()
+    for epoch in range(mepoch, args.epochs, 1): #range(args.epochs):
+        models_.train()
         LOG.info("Training epoch {0} out of {1}".format(epoch+1, args.epochs))
 
         loss_all = 0
 
         i = 1
         counter = 0
+        losses_ = []
         for batch in tqdm.tqdm(train_loader_):
             #LOG.info("Training batch {0} out of {1}".format(i, len(train_loader_)))
 
@@ -151,57 +156,73 @@ def train(args):
             optimizer_.zero_grad()
             output_ = model_(batch)
             #loss_ = F.nll_loss(output_, batch.y)
-            loss_ = criterion_(output_, batch.y)
+            losses_.apend(criterion_(output_, batch.y))
             #print(epoch, loss_.item())
             counter += 1 #batch.y.size(0) #size is not [1,96]
             #loss_all += batch.y.size(0) * loss_.item()
-            loss_all += loss_.item()
-            loss_.backward()
-            optimizer_.step()
             #LOG.info("Training loss {0}".format(loss_all))
 
             i = i+1
+
+            batch_Size = 32
+            if (counter % batch_size) == 0:
+              loss_ = sum(losses_)
+              loss_all += loss_.item()
+              loss_.backward()
+              optimizer_.step()
+              losses_ = []
 
             #Delete
             #model_.eval()
             #print(model_(batch))
 
         LOG.info("Training loss {0}".format(loss_all/counter))
-        with open('output_{}.txt'.format(str(epoch).zfill(2)), 'w') as f:
+        with open('losses_outputs/output_{}.txt'.format(str(epoch).zfill(2)), 'w') as f:
           f.write(str(loss_all/counter))
 
         # Evaluate on training set
         #"""
-        if (epoch + 1) % 4 == 0:
+        if (epoch + 1) % 1 == 0:
 
             model_.eval()
             correct_ = np.zeros(96)
 
-            save_test = True
             for batch in train_loader_:
               b = batch
               batch = batch.to(device_)
+              save_test = True
               pred_ = model_(batch)
               #print(pred_.size())
               #print(pred_)
               #aux = pred_.sub(batch.y)
               aux = pred_
+              aux2 = batch.y
               #aux = batch.y
               l = [aux[i].item() for i in range(96)]
+              ground_truth = [aux2[i].item() for i in range(96)]
               #l = aux.cpu()
               correct_ += np.array(l)
 
-             
-
               if save_test :
                 save_test = False
-                gnt_cloud.save_ply_cloud(np.transpose(b.pos.cpu(), (0,1)), np.transpose( b.x.cpu(), (0,1)), 'output_cloud_{}.ply'.format(epoch+1))
+                gnt_cloud.save_ply_cloud(np.transpose(b.pos.cpu(), (0,1)), np.transpose( b.x.cpu(), (0,1)), 'output_clouds/output_cloud_{}.ply'.format(epoch+1))
                 joints_left  = generate_listofpoints2(l[:48])
                 joints_right = generate_listofpoints2(l[48:])
                 joints = np.array(joints_left + joints_right)
                 print(joints.shape)
-                gnt_cloud.save_ply_cloud(joints, np.repeat([[255,255,255]], joints.shape[0], axis=0),'output_joints_{}.ply'.format(epoch+1))
+                gnt_cloud.save_ply_cloud(joints, np.repeat([[255,255,255]], joints.shape[0], axis=0),'outputs_joints/output_joints_{}.ply'.format(epoch+1))
                 torch.save(model_.state_dict(), 'models/model_{}.pt'.format(str(epoch).zfill(2)))
+                with open('output_error/output_{}.json'.format(str(j+1).zfill(3)), 'w') as f:
+                  error = np.abs(np.array(ground_truth)-np.array(l))
+                  output_error = {}
+                  output_error["output"] = l
+                  output_error["output_ground_truth"] = ground_truth
+                  output_error["error"] = error.tolist()
+                  output_error["mean_error"] = error.mean()
+                  euclidean_distance = [ np.sqrt(np.power(error[i:i+3],2).sum()) for i in range(0,error.shape[0],3)]
+                  output_error["euclidean_distance"] = euclidean_distance
+                  output_error["euclidean_distance_mean"] = np.array(euclidean_distance).mean()
+                  json.dump(output_error, f)
                 break
                 #with open('output_{}.txt'.format(epoch).'w') as f:
                 #  data.save()
@@ -261,7 +282,7 @@ if __name__ == "__main__":
     PARSER_ = argparse.ArgumentParser(description="Parameters")
     PARSER_.add_argument("--batch_size", nargs="?", type=int, default=1, help="Batch Size")
     PARSER_.add_argument("--epochs", nargs="?", type=int, default=256, help="Training Epochs")
-    PARSER_.add_argument("--lr", nargs="?", type=float, default=0.0000001, help="Learning Rate")
+    PARSER_.add_argument("--lr", nargs="?", type=float, default=0.001, help="Learning Rate")
     PARSER_.add_argument("--k", nargs="?", type=int, default=3, help="k Nearest Neighbors")
     PARSER_.add_argument("--net", nargs="?", default="GCN_test", help="Network model")
     PARSER_.add_argument("--loss", nargs="?", default="mean_square_error", help="Loss criterion")
