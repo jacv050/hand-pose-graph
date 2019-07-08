@@ -103,7 +103,7 @@ def train(args):
         args : The arguments of the main program.
     """
 
-    dataset_ = dataset.unrealhands_otf.UnrealHands(root="data/unrealhands-test", k=args.k)
+    dataset_ = dataset.unrealhands_otf.UnrealHands(root="data/unrealhands-validation", k=args.k)
     LOG.info("Training dataset...")
     LOG.info(dataset_)
     train_loader_ = DataLoader(dataset_,
@@ -135,20 +135,20 @@ def train(args):
     #optimizer_ = torch.optim.Adam(model_.parameters(), lr=args.lr)
     LOG.info(optimizer_)
 
-    mepoch = 101
-    checkpoint = torch.load('models/model_{}.pt'.format(str(mepoch-1).zfill(3)))
+    mepoch = 512
+    checkpoint = torch.load('data/models/model_{}.pt'.format(str(mepoch-1).zfill(3)))
     model_.load_state_dict(checkpoint)
 
-    loss_gen = True
+    loss_gen = False
 
     time_start_ = timer()
-    for epoch in range(90,100, 1):
+    for epoch in range(496, 498, 4):
         if loss_gen:
           mepoch = epoch+1
-          checkpoint = torch.load('models/model_{}.pt'.format(str(mepoch-1).zfill(3)))
+          checkpoint = torch.load('data/models/model_{}.pt'.format(str(mepoch-1).zfill(3)))
           model_.load_state_dict(checkpoint)
 
-        model_.training = False
+        model_.eval()
 
         LOG.info("Training epoch {0} out of {1}".format(epoch+1, args.epochs))
 
@@ -164,6 +164,8 @@ def train(args):
               output_ = model_(batch)
               #loss_ = F.nll_loss(output_, batch.y)
               loss_ = criterion_(output_, batch.y)
+              print(torch.mean(torch.abs(loss_-batch.y)))
+              #print(loss_.item())
               #print(epoch, loss_.item())
               #loss_all += batch.y.size(0) * loss_.item()
               loss_all += loss_.item()
@@ -183,6 +185,7 @@ def train(args):
               aux2 = batch.y
               l = [aux[i].item() for i in range(96)]
               ground_truth = [aux2[i].item() for i in range(96)]
+              #print(torch.mean(torch.abs(pred_-batch.y)))
               #l = aux.cpu()
               #correct_ += np.array(l)
 
@@ -190,7 +193,10 @@ def train(args):
                 #save_test = False
                 #l = [aux[i].item() for i in range(96)]
                 #output
-                #gnt_cloud.save_ply_cloud(np.transpose(b.pos.cpu(), (0,1)), np.transpose( b.x.cpu(), (0,1)), 'output_cloud_{}.ply'.format(epoch+1))
+                #print(np.transpose( batch.x.cpu(), (0,1))[0,:])
+                #print(batch.x.cpu().shape)
+                gnt_cloud.save_ply_cloud(np.transpose(batch.pos.cpu(), (0,1)), np.transpose( batch.x.cpu()[:,:3]*255, (0,1)), 'outputs_clouds_validation/output_cloud_{}.ply'.format(j+1))
+                #gnt_cloud.save_ply_cloud(batch.pos.cpu(),batch.x.cpu(), 'outputs_clouds_validation/output_cloud_{}.ply'.format(j+1))
                 joints_left  = generate_listofpoints2(l[:48])
                 joints_right = generate_listofpoints2(l[48:])
                 joints = np.array(joints_left + joints_right)
@@ -210,6 +216,7 @@ def train(args):
                   output_error["output_ground_truth"] = ground_truth
                   output_error["error"] = error.tolist()
                   output_error["mean_error"] = error.mean()
+                  #print(output_error["mean_error"])
                   euclidean_distance = [ np.sqrt(np.power(error[i:i+3],2).sum()) for i in range(0,error.shape[0],3)]
                   output_error["euclidean_distance"] = euclidean_distance
                   output_error["euclidean_distance_mean"] = np.array(euclidean_distance).mean()
@@ -282,10 +289,10 @@ if __name__ == "__main__":
     PARSER_ = argparse.ArgumentParser(description="Parameters")
     PARSER_.add_argument("--batch_size", nargs="?", type=int, default=1, help="Batch Size")
     PARSER_.add_argument("--epochs", nargs="?", type=int, default=512, help="Training Epochs")
-    PARSER_.add_argument("--lr", nargs="?", type=float, default=0.01, help="Learning Rate")
+    PARSER_.add_argument("--lr", nargs="?", type=float, default=0.0001, help="Learning Rate")
     PARSER_.add_argument("--k", nargs="?", type=int, default=7, help="k Nearest Neighbors")
     PARSER_.add_argument("--net", nargs="?", default="GCN_test", help="Network model")
-    PARSER_.add_argument("--loss", nargs="?", default="root_mean_square_error", help="Loss criterion")
+    PARSER_.add_argument("--loss", nargs="?", default="mean_absolute_error", help="Loss criterion")
 
     ARGS_ = PARSER_.parse_args()
 

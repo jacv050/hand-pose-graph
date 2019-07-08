@@ -7,6 +7,7 @@ import numpy as np
 from plyfile import (PlyData, PlyElement, make2d, PlyParseError, PlyProperty)
 
 import scipy.spatial
+from scipy.cluster.vq import vq, kmeans2, whiten
 
 import torch
 from torch_geometric.data import Dataset
@@ -26,11 +27,16 @@ class UnrealHands(Dataset):
 
     graph_x_ = torch.tensor(np.vstack((cloud['vertex']['red'],
                                       cloud['vertex']['green'],
-                                      cloud['vertex']['blue'])), dtype=torch.float).transpose(0, 1)
+                                      cloud['vertex']['blue'],
+                                      cloud['vertex']['x'],
+                                      cloud['vertex']['y'],
+                                      cloud['vertex']['z'],)), dtype=torch.float).transpose(0, 1)
 
     points_ = np.transpose(np.vstack((cloud['vertex']['x'],
                                       cloud['vertex']['y'],
-                                      cloud['vertex']['z'])), (1,0))
+                                      cloud['vertex']['z'])), (1,0)) #N,3
+
+    #clusters = kmeans2(points_, 2)
 
     tree_ = scipy.spatial.cKDTree(points_)
 
@@ -57,7 +63,7 @@ class UnrealHands(Dataset):
 
     #FIX SIZE
     diff = 1395 - len(cloud['vertex']['x'])
-    graph_x_ = torch.cat((graph_x_, torch.tensor(np.repeat([[255,255,255]], diff, axis=0), dtype=torch.float)), 0)
+    graph_x_ = torch.cat((graph_x_, torch.tensor(np.repeat([[0,0,0,0,0,0]], diff, axis=0), dtype=torch.float)), 0)
     graph_pos_ = torch.cat((graph_pos_, torch.zeros((diff,3))))
     #FIXED
 

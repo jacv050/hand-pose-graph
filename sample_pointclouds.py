@@ -3,7 +3,10 @@ import numpy as np
 import os
 import pathlib
 
-ROOT = "data/unrealhands/raw/"
+#ROOT = "data/unrealhands/raw/"
+ROOT = "data/unrealhands-test/raw/"
+
+MAX = 1395
 
 def main():
   print(ROOT)
@@ -23,6 +26,8 @@ def main():
         print(np.asarray(pcd.points).shape)
         size = np.asarray(downpcd.points).shape
         print(size)
+        if(size[0] > MAX):
+          continue
         if(size[0] > max_points):
           max_points = size[0]
         o3d.io.write_point_cloud(cout_dir + "/" + cloud ,downpcd)
