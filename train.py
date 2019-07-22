@@ -135,14 +135,20 @@ def train(args):
     optimizer_ = torch.optim.SGD(model_.parameters(), lr=args.lr, momentum=0.9, nesterov=True)
     LOG.info(optimizer_)
 
-    #mepoch = 1024
-    #checkpoint = torch.load('data/models/model_{}.pt'.format(str(mepoch-1).zfill(3)))
-    #model_.load_state_dict(checkpoint)
+    mepoch = 100
+    checkpoint = torch.load('models/model_{}.pt'.format(str(mepoch-1).zfill(3)))
+    model_.load_state_dict(checkpoint)
 
     time_start_ = timer()
-    for epoch in range(0,64,1): #range(args.epochs):
+    for epoch in range(100, 1024,1): #range(args.epochs):
         model_.train()
         LOG.info("Training epoch {0} out of {1}".format(epoch+1, args.epochs))
+
+        if epoch > 99:
+          e = epoch/100
+          lr = np.power(10,-e) * args.lr
+          for param_group in optimizer_.param_groups:
+            param_group['lr'] = lr
 
         loss_all = 0
 
@@ -156,7 +162,7 @@ def train(args):
             optimizer_.zero_grad()
             output_ = model_(batch)
             #loss_ = F.nll_loss(output_, batch.y)
-            losses_.append(criterion_(output_, batch.y*1000))
+            losses_.append(criterion_(output_, batch.y))
             #print(epoch, loss_.item())
             counter += 1 #batch.y.size(0) #size is not [1,96]
             #loss_all += batch.y.size(0) * loss_.item()
@@ -173,7 +179,7 @@ def train(args):
               for param in model_.parameters():
                 reg_loss = torch.sum(torch.abs(param)) + reg_loss
 
-              l1_lambda = 0.01
+              l1_lambda = 0.00005
               loss_ = loss_ + l1_lambda * reg_loss
 
               loss_.backward()
@@ -292,7 +298,7 @@ if __name__ == "__main__":
     PARSER_ = argparse.ArgumentParser(description="Parameters")
     PARSER_.add_argument("--batch_size", nargs="?", type=int, default=1, help="Batch Size")
     PARSER_.add_argument("--epochs", nargs="?", type=int, default=128, help="Training Epochs")
-    PARSER_.add_argument("--lr", nargs="?", type=float, default=0.00001, help="Learning Rate")
+    PARSER_.add_argument("--lr", nargs="?", type=float, default=0.001, help="Learning Rate")
     PARSER_.add_argument("--k", nargs="?", type=int, default=7, help="k Nearest Neighbors")
     PARSER_.add_argument("--net", nargs="?", default="GCN_test", help="Network model")
     PARSER_.add_argument("--loss", nargs="?", default="mean_absolute_error", help="Loss criterion")

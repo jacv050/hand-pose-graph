@@ -136,16 +136,16 @@ def train(args):
     LOG.info(optimizer_)
 
     mepoch = 512
-    checkpoint = torch.load('data/models/model_{}.pt'.format(str(mepoch-1).zfill(3)))
-    model_.load_state_dict(checkpoint)
+    #checkpoint = torch.load('data/models/model_{}.pt'.format(str(mepoch-1).zfill(3)))
+    #model_.load_state_dict(checkpoint)
 
-    loss_gen = False
+    loss_gen = True
 
     time_start_ = timer()
-    for epoch in range(496, 498, 4):
+    for epoch in range(237, 700, 1):
         if loss_gen:
           mepoch = epoch+1
-          checkpoint = torch.load('data/models/model_{}.pt'.format(str(mepoch-1).zfill(3)))
+          checkpoint = torch.load('models/model_{}.pt'.format(str(mepoch-1).zfill(3)))
           model_.load_state_dict(checkpoint)
 
         model_.eval()
@@ -164,7 +164,7 @@ def train(args):
               output_ = model_(batch)
               #loss_ = F.nll_loss(output_, batch.y)
               loss_ = criterion_(output_, batch.y)
-              print(torch.mean(torch.abs(loss_-batch.y)))
+              #print(torch.mean(torch.abs(loss_-batch.y)))
               #print(loss_.item())
               #print(epoch, loss_.item())
               #loss_all += batch.y.size(0) * loss_.item()
