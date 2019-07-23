@@ -4,3 +4,8 @@
 *.pyc
 data/*/raw/*
 data*
+losses_outputs/
+losses_outputs_validation/
+output_error_validation/
+*.png
+*.swp
