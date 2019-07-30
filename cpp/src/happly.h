@@ -958,7 +958,7 @@ public:
       if (castedProp) {
         // Succeeded, return a buffer of the data (copy while converting type)
         std::vector<D> castedVec;
-        for (Tcan& v : carop->data) {
+        for (Tcan& v : castedProp->data) {
           castedVec.push_back(static_cast<D>(v));
         }
         return castedVec;
@@ -1362,7 +1362,7 @@ public:
     }
 
     // Store
-    getElement(ver).addProperty<unsigned char>("red", r);
+    getElement(vertexName).addProperty<unsigned char>("red", r);
     getElement(vertexName).addProperty<unsigned char>("green", g);
     getElement(vertexName).addProperty<unsigned char>("blue", b);
   }
@@ -1649,4 +1649,3 @@ private:
 };
 
 } // namespace happly
-
