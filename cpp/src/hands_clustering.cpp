@@ -203,11 +203,37 @@ void index_points_near_gt(const pcl::PointCloud<pcl::PointXYZRGB>::Ptr& cloud,
       const pcl::search::Search<pcl::PointXYZRGB>::Ptr& search,
       const std::vector<float>& lground_truth,
       const std::vector<float>& rground_truth,
-      std::vector< std::vector<int> > lindices,
-      std::vector< std::vector<int> > rindices){
-  std::vector< std::vector<float> > ddistances;
-  search.nearestKSearch(cloud, lground_truth, 1, lindices, distances);
-  search.nearestKSearch(cloud, rground_truth, 1, rindices, distances);
+      std::vector<int> lindices,
+      std::vector<int> rindices){
+
+  for(int i=0, j=0; i<lground_truth.size(); i+=3, ++j){
+    std::vector<int> li, ri;
+    std::vector<float> distances;
+
+    pcl::PointXYZRGB lp(0,0,0);
+    pcl::PointXYZRGB rp(0,0,0);
+
+    lp.x = lground_truth[i];
+    lp.y = lground_truth[i+1];
+    lp.z = lground_truth[i+2];
+
+    rp.x = rground_truth[i];
+    rp.y = rground_truth[i+1];
+    rp.z = rground_truth[i+2];
+
+    search->nearestKSearch(lp, 1, li, distances);
+    search->nearestKSearch(rp, 1, ri, distances);
+    lindices.push_back(li[0]);
+    rindices.push_back(ri[0]);
+  }
+}
+
+bool exists(std::vector<int> v, int n){
+  for(int i=0;i<v.size(); ++i){
+    if(v[i] == n)
+      return true;
+  }
+  return false;
 }
 
 void separete_hands(const pcl::PointCloud<pcl::PointXYZRGB>::Ptr& cloud,
@@ -215,9 +241,9 @@ void separete_hands(const pcl::PointCloud<pcl::PointXYZRGB>::Ptr& cloud,
       pcl::PointCloud<pcl::PointXYZRGB>::Ptr& right_hand,
       const std::vector<float>& lground_truth,
       const std::vector<float>& rground_truth){
-  pcl::search::Search<pcl::PointXYZ>::Ptr tree (new pcl::search::KdTree<pcl::PointXYZ>);
+  pcl::search::Search<pcl::PointXYZRGB>::Ptr tree (new pcl::search::KdTree<pcl::PointXYZRGB>);
   pcl::PointCloud <pcl::Normal>::Ptr normals (new pcl::PointCloud <pcl::Normal>);
-  pcl::NormalEstimation<pcl::PointXYZ, pcl::Normal> normal_estimator;
+  pcl::NormalEstimation<pcl::PointXYZRGB, pcl::Normal> normal_estimator;
   normal_estimator.setSearchMethod (tree);
   normal_estimator.setInputCloud (cloud);
   normal_estimator.setKSearch (50);
@@ -232,7 +258,7 @@ void separete_hands(const pcl::PointCloud<pcl::PointXYZRGB>::Ptr& cloud,
   pass.filter (*indices);
   */
 
-  pcl::RegionGrowing<pcl::PointXYZ, pcl::Normal> reg;
+  pcl::RegionGrowing<pcl::PointXYZRGB, pcl::Normal> reg;
   reg.setMinClusterSize (50);
   reg.setMaxClusterSize (1000000);
   reg.setSearchMethod (tree);
@@ -243,30 +269,29 @@ void separete_hands(const pcl::PointCloud<pcl::PointXYZRGB>::Ptr& cloud,
   reg.setSmoothnessThreshold (3.0 / 180.0 * M_PI);
   reg.setCurvatureThreshold (1.0);
 
-  std::vector< std::vector<int> > lindices;
-  std::vector< std::vector<int> > rindices;
+  std::vector<int> lindices;
+  std::vector<int> rindices;
   index_points_near_gt(cloud, tree, lground_truth, rground_truth, lindices, rindices);
-  #index_points_near_gt(cloud, tree, rground_truth, rground_truth, lindices, rindices);
 
   std::vector<pcl::PointIndices> clusters;
   pcl::PointIndices cluster;
   //reg.extract(clusters);
 
-  pcl::IndicesPtr indices();
+  //pcl::IndicesPtr indices();
   for(int i=0; i<lindices.size(); ++i){
-    if(cluster.size() == 0){
+    if(cluster.indices.size() == 0){
       //pcl::PointXYZ p(lground_truth[i], lground_truth[i+1], lground_truth[i+2]);
       reg.getSegmentFromPoint(lindices[i], cluster);
-    }else if(std::find(cluster.begin(), cluster.end(), lindices[i])){
+    }else if(!exists(cluster.indices, lindices[i])){
       pcl::PointIndices c;
       reg.getSegmentFromPoint(lindices[i], c);
-      cluster.insert(cluster.end(), c.begin(), c.end());
+      cluster.indices.insert(cluster.indices.end(), c.indices.begin(), c.indices.end());
     }
   }
 }
 
 int main (int argc, char** argv){
-  pcl::PointCloud<pcl::PointXYZ>::Ptr cloud (new pcl::PointCloud<pcl::PointXYZ>);
+  pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud (new pcl::PointCloud<pcl::PointXYZRGB>);
 
   boost::program_options::variables_map variablesMap;
   if (parse_command_line_options(variablesMap, argc, argv))
