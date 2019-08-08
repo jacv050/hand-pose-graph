@@ -199,8 +199,70 @@ void generate_output_name(const std::string& name, const std::string& output_for
   }
 }
 
-void separete_hands(){
+void index_points_near_gt(const pcl::PointCloud<pcl::PointXYZRGB>::Ptr& cloud,
+      const pcl::search::Search<pcl::PointXYZRGB>::Ptr& search,
+      const std::vector<float>& lground_truth,
+      const std::vector<float>& rground_truth,
+      std::vector< std::vector<int> > lindices,
+      std::vector< std::vector<int> > rindices){
+  std::vector< std::vector<float> > ddistances;
+  search.nearestKSearch(cloud, lground_truth, 1, lindices, distances);
+  search.nearestKSearch(cloud, rground_truth, 1, rindices, distances);
+}
 
+void separete_hands(const pcl::PointCloud<pcl::PointXYZRGB>::Ptr& cloud,
+      pcl::PointCloud<pcl::PointXYZRGB>::Ptr& left_hand,
+      pcl::PointCloud<pcl::PointXYZRGB>::Ptr& right_hand,
+      const std::vector<float>& lground_truth,
+      const std::vector<float>& rground_truth){
+  pcl::search::Search<pcl::PointXYZ>::Ptr tree (new pcl::search::KdTree<pcl::PointXYZ>);
+  pcl::PointCloud <pcl::Normal>::Ptr normals (new pcl::PointCloud <pcl::Normal>);
+  pcl::NormalEstimation<pcl::PointXYZ, pcl::Normal> normal_estimator;
+  normal_estimator.setSearchMethod (tree);
+  normal_estimator.setInputCloud (cloud);
+  normal_estimator.setKSearch (50);
+  normal_estimator.compute (*normals);
+
+  /*
+  pcl::IndicesPtr indices (new std::vector <int>);
+  pcl::PassThrough<pcl::PointXYZ> pass;
+  pass.setInputCloud (cloud);
+  pass.setFilterFieldName ("z");
+  pass.setFilterLimits (0.0, 1.0);
+  pass.filter (*indices);
+  */
+
+  pcl::RegionGrowing<pcl::PointXYZ, pcl::Normal> reg;
+  reg.setMinClusterSize (50);
+  reg.setMaxClusterSize (1000000);
+  reg.setSearchMethod (tree);
+  reg.setNumberOfNeighbours (30);
+  reg.setInputCloud (cloud);
+  //reg.setIndices (indices);
+  reg.setInputNormals (normals);
+  reg.setSmoothnessThreshold (3.0 / 180.0 * M_PI);
+  reg.setCurvatureThreshold (1.0);
+
+  std::vector< std::vector<int> > lindices;
+  std::vector< std::vector<int> > rindices;
+  index_points_near_gt(cloud, tree, lground_truth, rground_truth, lindices, rindices);
+  #index_points_near_gt(cloud, tree, rground_truth, rground_truth, lindices, rindices);
+
+  std::vector<pcl::PointIndices> clusters;
+  pcl::PointIndices cluster;
+  //reg.extract(clusters);
+
+  pcl::IndicesPtr indices();
+  for(int i=0; i<lindices.size(); ++i){
+    if(cluster.size() == 0){
+      //pcl::PointXYZ p(lground_truth[i], lground_truth[i+1], lground_truth[i+2]);
+      reg.getSegmentFromPoint(lindices[i], cluster);
+    }else if(std::find(cluster.begin(), cluster.end(), lindices[i])){
+      pcl::PointIndices c;
+      reg.getSegmentFromPoint(lindices[i], c);
+      cluster.insert(cluster.end(), c.begin(), c.end());
+    }
+  }
 }
 
 int main (int argc, char** argv){

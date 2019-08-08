@@ -9,3 +9,4 @@ losses_outputs_validation/
 output_error_validation/
 *.png
 *.swp
+cpp/build
