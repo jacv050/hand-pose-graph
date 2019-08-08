@@ -236,6 +236,20 @@ bool exists(std::vector<int> v, int n){
   return false;
 }
 
+void segment_hand(pcl::PointIndices& cluster, const std::vector<int>& indices,
+      pcl::RegionGrowing<pcl::PointXYZRGB, pcl::Normal>& reg){
+  for(int i=0; i<indices.size(); ++i){
+    if(cluster.indices.size() == 0){
+      //pcl::PointXYZ p(lground_truth[i], lground_truth[i+1], lground_truth[i+2]);
+      reg.getSegmentFromPoint(indices[i], cluster);
+    }else if(!exists(cluster.indices, indices[i])){
+      pcl::PointIndices c;
+      reg.getSegmentFromPoint(indices[i], c);
+      cluster.indices.insert(cluster.indices.end(), c.indices.begin(), c.indices.end());
+    }
+  }
+}
+
 void separete_hands(const pcl::PointCloud<pcl::PointXYZRGB>::Ptr& cloud,
       pcl::PointCloud<pcl::PointXYZRGB>::Ptr& left_hand,
       pcl::PointCloud<pcl::PointXYZRGB>::Ptr& right_hand,
@@ -259,10 +273,10 @@ void separete_hands(const pcl::PointCloud<pcl::PointXYZRGB>::Ptr& cloud,
   */
 
   pcl::RegionGrowing<pcl::PointXYZRGB, pcl::Normal> reg;
-  reg.setMinClusterSize (50);
-  reg.setMaxClusterSize (1000000);
+  reg.setMinClusterSize (10);
+  reg.setMaxClusterSize (7450);
   reg.setSearchMethod (tree);
-  reg.setNumberOfNeighbours (30);
+  reg.setNumberOfNeighbours (10);
   reg.setInputCloud (cloud);
   //reg.setIndices (indices);
   reg.setInputNormals (normals);
@@ -273,21 +287,11 @@ void separete_hands(const pcl::PointCloud<pcl::PointXYZRGB>::Ptr& cloud,
   std::vector<int> rindices;
   index_points_near_gt(cloud, tree, lground_truth, rground_truth, lindices, rindices);
 
-  std::vector<pcl::PointIndices> clusters;
-  pcl::PointIndices cluster;
+  //std::vector<pcl::PointIndices> clusters;
+  pcl::PointIndices lcluster, rcluster;
   //reg.extract(clusters);
-
-  //pcl::IndicesPtr indices();
-  for(int i=0; i<lindices.size(); ++i){
-    if(cluster.indices.size() == 0){
-      //pcl::PointXYZ p(lground_truth[i], lground_truth[i+1], lground_truth[i+2]);
-      reg.getSegmentFromPoint(lindices[i], cluster);
-    }else if(!exists(cluster.indices, lindices[i])){
-      pcl::PointIndices c;
-      reg.getSegmentFromPoint(lindices[i], c);
-      cluster.indices.insert(cluster.indices.end(), c.indices.begin(), c.indices.end());
-    }
-  }
+  segment_hand(lcluster, lindices, reg);
+  segment_hand(rcluster, rindices, reg);
 }
 
 int main (int argc, char** argv){
