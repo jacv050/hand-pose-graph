@@ -203,23 +203,24 @@ void index_points_near_gt(const pcl::PointCloud<pcl::PointXYZRGB>::Ptr& cloud,
       const pcl::search::Search<pcl::PointXYZRGB>::Ptr& search,
       const std::vector<float>& lground_truth,
       const std::vector<float>& rground_truth,
-      std::vector<int> lindices,
-      std::vector<int> rindices){
-
-  for(int i=0, j=0; i<lground_truth.size(); i+=3, ++j){
+      std::vector<int>& lindices,
+      std::vector<int>& rindices){
+  std::cout << lground_truth.size() << std::endl;
+  for(int i=0; i<lground_truth.size(); ++i){
+  //for(int i=0, j=0; i<lground_truth.size(); i+=3, ++j){
     std::vector<int> li, ri;
     std::vector<float> distances;
 
     pcl::PointXYZRGB lp(0,0,0);
     pcl::PointXYZRGB rp(0,0,0);
 
-    lp.x = lground_truth[i];
-    lp.y = lground_truth[i+1];
-    lp.z = lground_truth[i+2];
+    lp.x = lground_truth[0];
+    lp.y = lground_truth[1];
+    lp.z = lground_truth[2];
 
-    rp.x = rground_truth[i];
-    rp.y = rground_truth[i+1];
-    rp.z = rground_truth[i+2];
+    rp.x = rground_truth[0];
+    rp.y = rground_truth[1];
+    rp.z = rground_truth[2];
 
     search->nearestKSearch(lp, 1, li, distances);
     search->nearestKSearch(rp, 1, ri, distances);
@@ -237,17 +238,27 @@ bool exists(std::vector<int> v, int n){
 }
 
 void segment_hand(pcl::PointIndices& cluster, const std::vector<int>& indices,
-      pcl::RegionGrowing<pcl::PointXYZRGB, pcl::Normal>& reg){
+      pcl::RegionGrowing<pcl::PointXYZRGB, pcl::Normal>& reg,
+      const pcl::PointCloud<pcl::PointXYZRGB>::Ptr& in_cloud,
+      pcl::PointCloud<pcl::PointXYZRGB>::Ptr& out_cloud){
   for(int i=0; i<indices.size(); ++i){
     if(cluster.indices.size() == 0){
       //pcl::PointXYZ p(lground_truth[i], lground_truth[i+1], lground_truth[i+2]);
       reg.getSegmentFromPoint(indices[i], cluster);
+      //std::cout << cluster.indices.size() << std::endl;
     }else if(!exists(cluster.indices, indices[i])){
       pcl::PointIndices c;
       reg.getSegmentFromPoint(indices[i], c);
       cluster.indices.insert(cluster.indices.end(), c.indices.begin(), c.indices.end());
     }
   }
+
+  for (std::vector<int>::const_iterator pit = cluster.indices.begin (); pit != cluster.indices.end (); ++pit)
+    out_cloud->points.push_back(in_cloud->points[*pit]);
+
+  out_cloud->width = out_cloud->points.size();
+  out_cloud->height = 1;
+  out_cloud->is_dense = true;
 }
 
 void separete_hands(const pcl::PointCloud<pcl::PointXYZRGB>::Ptr& cloud,
@@ -273,14 +284,15 @@ void separete_hands(const pcl::PointCloud<pcl::PointXYZRGB>::Ptr& cloud,
   */
 
   pcl::RegionGrowing<pcl::PointXYZRGB, pcl::Normal> reg;
-  reg.setMinClusterSize (10);
-  reg.setMaxClusterSize (7450);
+  reg.setMinClusterSize (1);
+  reg.setMaxClusterSize (15000);
   reg.setSearchMethod (tree);
   reg.setNumberOfNeighbours (10);
   reg.setInputCloud (cloud);
   //reg.setIndices (indices);
   reg.setInputNormals (normals);
-  reg.setSmoothnessThreshold (3.0 / 180.0 * M_PI);
+  //reg.setSmoothnessThreshold (3.0 / 180.0 * M_PI);
+  reg.setSmoothnessThreshold (5.0 / 180.0 * M_PI);
   reg.setCurvatureThreshold (1.0);
 
   std::vector<int> lindices;
@@ -290,8 +302,8 @@ void separete_hands(const pcl::PointCloud<pcl::PointXYZRGB>::Ptr& cloud,
   //std::vector<pcl::PointIndices> clusters;
   pcl::PointIndices lcluster, rcluster;
   //reg.extract(clusters);
-  segment_hand(lcluster, lindices, reg);
-  segment_hand(rcluster, rindices, reg);
+  segment_hand(lcluster, lindices, reg, cloud, left_hand);
+  segment_hand(rcluster, rindices, reg, cloud, right_hand);
 }
 
 int main (int argc, char** argv){
@@ -340,11 +352,14 @@ int main (int argc, char** argv){
         pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZRGB>());
         pcl::PointCloud<pcl::PointXYZRGB>::Ptr downsampled(new pcl::PointCloud<pcl::PointXYZRGB>());
 
+        pcl::PointCloud<pcl::PointXYZRGB>::Ptr left_hand(new pcl::PointCloud<pcl::PointXYZRGB>());
+        pcl::PointCloud<pcl::PointXYZRGB>::Ptr right_hand(new pcl::PointCloud<pcl::PointXYZRGB>());
+
         pcl::io::loadPLYFile(path, *cloud);
         downsample(cloud, downsampled);
         //Write ply Happ
         std::string loutput_name, routput_name, filename_joints;
-        std::vector< std::vector<float> > left_hand, right_hand;
+        std::vector< std::vector<float> > gt_left_hand, gt_right_hand;
 
         generate_output_name(filename, "_lsampled.ply", loutput_name);
         generate_output_name(filename, "_rsampled.ply", routput_name);
@@ -353,10 +368,12 @@ int main (int argc, char** argv){
         routput_name = cout_dir + "/" + routput_name;
         filename_joints = cjoints + "/" + filename_joints;
         //gt -> enum ground truth mode
-        generate_ground_truth(filename_joints, gt, left_hand, right_hand);
-        //TODO cluster cloud
-        writeHaplyFromPCL(cloud, gt, left_hand, loutput_name);
-        writeHaplyFromPCL(cloud, gt, right_hand, routput_name);
+        generate_ground_truth(filename_joints, gt, gt_left_hand, gt_right_hand);
+        //TODO cluster cloud GROUND TRUTH 1 = ABSOLUTE
+        separete_hands(cloud, left_hand, right_hand, gt_left_hand[1], gt_right_hand[1]);
+
+        writeHaplyFromPCL(left_hand, gt, gt_left_hand, loutput_name);
+        writeHaplyFromPCL(right_hand, gt, gt_right_hand, routput_name);
       }
     }
   }
