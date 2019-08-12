@@ -61,7 +61,7 @@ void read_ground_truth_json(const std::string& filename,
       std::vector< void (*)(const Json::Value&, const Json::Value&, std::vector<float>& ) > operations,
       std::vector< std::vector<float> >& left,
       std::vector< std::vector<float> >& right){
-  std::cout << filename << std::endl;
+  //std::cout << filename << std::endl;
   std::ifstream ground_truth(filename, std::ifstream::binary);
   Json::Reader reader;
   Json::Value obj;
@@ -334,17 +334,30 @@ int main (int argc, char** argv){
       std::string cin_dir = in_dir + "/" + camera;
       std::string cout_dir = out_dir + "/" + camera;
       std::string cjoints = joints + "/" + camera;
-      #pragma omp parallel
-      {
-        auto begin = boost::filesystem::directory_iterator(cin_dir);
-        auto end = boost::filesystem::directory_iterator(cin_dir);
-      //for (const auto & cloud_path : boost::make_iterator_range(boost::filesystem::directory_iterator(cin_dir), {})){
-      #pragma openmp for
-      for(; begin != end; ++begin){
-        const auto cloud_path = *begin;
+
+      std::vector<boost::filesystem::directory_entry> v;
+      auto begin = boost::filesystem::directory_iterator(cin_dir);
+      auto end = boost::filesystem::directory_iterator();
+      copy(begin, end, back_inserter(v));
+
+      #pragma omp parallel for
+      for(int i=0; i<v.size(); ++i){
+      //for(auto it=v.begin(); it != v.end(); ++it){
+        const auto cloud_path = v[i];
         std::string filename = cloud_path.path().filename().string();
         std::string path = cin_dir + "/" + filename;
         std::string fjoints = filename;
+
+        std::string loutput_name, routput_name, filename_joints;
+        generate_output_name(filename, "_lsampled.ply", loutput_name);
+        generate_output_name(filename, "_rsampled.ply", routput_name);
+        generate_output_name(fjoints, ".json", filename_joints);
+        loutput_name = cout_dir + "/" + loutput_name;
+        routput_name = cout_dir + "/" + routput_name;
+        filename_joints = cjoints + "/" + filename_joints;
+
+        std::cout << path << std::endl;
+        if(!boost::filesystem::exists(loutput_name) || !boost::filesystem::exists(routput_name)){
         //Read ply. happly
         /****
         happly::PLYData plyIn(cloud);
@@ -364,15 +377,8 @@ int main (int argc, char** argv){
         pcl::io::loadPLYFile(path, *cloud);
         downsample(cloud, downsampled);
         //Write ply Happ
-        std::string loutput_name, routput_name, filename_joints;
         std::vector< std::vector<float> > gt_left_hand, gt_right_hand;
 
-        generate_output_name(filename, "_lsampled.ply", loutput_name);
-        generate_output_name(filename, "_rsampled.ply", routput_name);
-        generate_output_name(fjoints, ".json", filename_joints);
-        loutput_name = cout_dir + "/" + loutput_name;
-        routput_name = cout_dir + "/" + routput_name;
-        filename_joints = cjoints + "/" + filename_joints;
         //gt -> enum ground truth mode
         generate_ground_truth(filename_joints, gt, gt_left_hand, gt_right_hand);
         //cluster cloud GROUND TRUTH 1 = ABSOLUTE
@@ -382,6 +388,7 @@ int main (int argc, char** argv){
         writeHaplyFromPCL(right_hand, gt, gt_right_hand, routput_name);
       }
       }
+      //}
     }
   }
 
