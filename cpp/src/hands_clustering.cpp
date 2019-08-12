@@ -205,7 +205,6 @@ void index_points_near_gt(const pcl::PointCloud<pcl::PointXYZRGB>::Ptr& cloud,
       const std::vector<float>& rground_truth,
       std::vector<int>& lindices,
       std::vector<int>& rindices){
-  std::cout << lground_truth.size() << std::endl;
   for(int i=0; i<lground_truth.size(); ++i){
   //for(int i=0, j=0; i<lground_truth.size(); i+=3, ++j){
     std::vector<int> li, ri;
@@ -335,7 +334,14 @@ int main (int argc, char** argv){
       std::string cin_dir = in_dir + "/" + camera;
       std::string cout_dir = out_dir + "/" + camera;
       std::string cjoints = joints + "/" + camera;
-      for (const auto & cloud_path : boost::make_iterator_range(boost::filesystem::directory_iterator(cin_dir), {})){
+      #pragma omp parallel
+      {
+        auto begin = boost::filesystem::directory_iterator(cin_dir);
+        auto end = boost::filesystem::directory_iterator(cin_dir);
+      //for (const auto & cloud_path : boost::make_iterator_range(boost::filesystem::directory_iterator(cin_dir), {})){
+      #pragma openmp for
+      for(; begin != end; ++begin){
+        const auto cloud_path = *begin;
         std::string filename = cloud_path.path().filename().string();
         std::string path = cin_dir + "/" + filename;
         std::string fjoints = filename;
@@ -369,11 +375,12 @@ int main (int argc, char** argv){
         filename_joints = cjoints + "/" + filename_joints;
         //gt -> enum ground truth mode
         generate_ground_truth(filename_joints, gt, gt_left_hand, gt_right_hand);
-        //TODO cluster cloud GROUND TRUTH 1 = ABSOLUTE
+        //cluster cloud GROUND TRUTH 1 = ABSOLUTE
         separete_hands(cloud, left_hand, right_hand, gt_left_hand[1], gt_right_hand[1]);
 
         writeHaplyFromPCL(left_hand, gt, gt_left_hand, loutput_name);
         writeHaplyFromPCL(right_hand, gt, gt_right_hand, routput_name);
+      }
       }
     }
   }
