@@ -222,9 +222,7 @@ def train(args):
               if save_test :
                 save_test = False
                 gnt_cloud.save_ply_cloud(np.transpose(b.pos.cpu(), (0,1)), np.transpose( b.x.cpu(), (0,1)), 'output_clouds/output_cloud_{}.ply'.format(epoch+1))
-                joints_left  = generate_listofpoints(l[:48])
-                joints_right = generate_listofpoints(l[48:])
-                joints = np.array(joints_left + joints_right)
+                joints  = np.array(generate_listofpoints(l))
                 print(joints.shape)
                 gnt_cloud.save_ply_cloud(joints, np.repeat([[255,255,255]], joints.shape[0], axis=0),'outputs_joints/output_joints_{}.ply'.format(epoch+1))
                 torch.save(model_.state_dict(), 'models/model_{}.pt'.format(str(epoch).zfill(3)))
@@ -302,7 +300,7 @@ if __name__ == "__main__":
     PARSER_.add_argument("--epochs", nargs="?", type=int, default=128, help="Training Epochs")
     PARSER_.add_argument("--lr", nargs="?", type=float, default=0.001, help="Learning Rate")
     PARSER_.add_argument("--k", nargs="?", type=int, default=7, help="k Nearest Neighbors")
-    PARSER_.add_argument("--net", nargs="?", default="GCN_test", help="Network model")
+    PARSER_.add_argument("--net", nargs="?", default="GCN_testv2", help="Network model")
     PARSER_.add_argument("--loss", nargs="?", default="mean_absolute_error", help="Loss criterion")
 
     ARGS_ = PARSER_.parse_args()
