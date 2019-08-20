@@ -18,6 +18,7 @@
 #include <pcl/filters/voxel_grid.h>
 #include <pcl/point_types.h>
 #include <jsoncpp/json/json.h>
+#include "utils/transformation.hpp"
 //#include <iostream>
 //#include <filesystem>
 
@@ -29,6 +30,7 @@
 #define PARAM_VOXEL_GRID_SIZE "voxel_size"
 #define PARAM_CURVATURE_SMOOTHNESS "curvature_smoothness"
 enum GT{GT_ALL=0, GT_RELATIVE=1, GT_ABSOLUTE=2};
+enum EULERAXIS{EX, EY, EZ, EXY, EXZ, EYZ, EXYZ};
 
 bool parse_command_line_options(boost::program_options::variables_map & pVariablesMap, const int & pArgc, char ** pArgv){
   try{
@@ -60,6 +62,41 @@ void downsample(const pcl::PointCloud<pcl::PointXYZRGB>::Ptr& cloud, pcl::PointC
   sor.filter (*downsampled);
 }
 
+void push_degrees(const Eigen::Quaternionf& rot, std::vector<float>& degrees, EULERAXIS mode){
+  auto eulers = rot.toRotationMatrix().eulerAngles(0,1,2);
+  std::cout << eulers << std::endl;
+  switch(mode){
+    case EX:
+      degrees.push_back(eulers[0]);
+      break;
+    case EY:
+      degrees.push_back(eulers[1]);
+      break;
+    case EZ:
+      degrees.push_back(eulers[2]);
+      break;
+    case EXY:
+      degrees.push_back(eulers[0]);
+      degrees.push_back(eulers[1]);
+      break;
+    case EXZ:
+      degrees.push_back(eulers[0]);
+      degrees.push_back(eulers[2]);
+      break;
+    case EYZ:
+      degrees.push_back(eulers[1]);
+      degrees.push_back(eulers[2]);
+      break;
+    case EXYZ:
+      degrees.push_back(eulers[0]);
+      degrees.push_back(eulers[1]);
+      degrees.push_back(eulers[2]);
+      break;
+    default:
+      break;
+  }
+}
+
 void read_ground_truth_json(const std::string& filename,
       //void (*operation)(const Json::Value&, const Json::Value&, std::vector<float>&),
       std::vector< void (*)(bool, const Json::Value&, std::vector<float>& ) > operations,
@@ -73,6 +110,9 @@ void read_ground_truth_json(const std::string& filename,
   reader.parse(ground_truth, obj);
   const Json::Value& left_hand = obj["left_hand"];
   const Json::Value& right_hand = obj["right_hand"];
+
+  const Json::Value& left_hand_rot = obj["left_hand_rot"];
+  const Json::Value& right_hand_rot = obj["right_hand_rot"];
 
   //operations order -> relative, absolute, ...
   for(int k=0; k<operations.size(); ++k){
@@ -101,27 +141,94 @@ void read_ground_truth_json(const std::string& filename,
     left.push_back(l);
     right.push_back(r);
   }
-}
+  //*****************************************//
+  //TODO make it clean. 26/27 DOF Generation //
+  //*****************************************//
+  std::vector<float> l,r;
+  //HAND_ROOT 6DOF
+  Eigen::Quaternionf l_point = qutils::json2pquat(left_hand[0]);
+  Eigen::Quaternionf r_point = qutils::json2pquat(right_hand[0]);
+  Eigen::Quaternionf l_rot   = qutils::json2rquat(left_hand_rot[0]);
+  Eigen::Quaternionf r_rot   = qutils::json2rquat(right_hand_rot[0]);
 
-//TODO first parameter doesn't used, valorate to delete.
-void absolute(bool init_finger, const Json::Value& p2, std::vector<float>& o){
-  int size = o.size();
-  if(init_finger){
-    o.push_back(o[0]+p2[0].asFloat());
-    o.push_back(o[1]+p2[1].asFloat());
-    o.push_back(o[2]+p2[2].asFloat());
-    //o.push_back(p1[0].asFloat()+p2[0].asFloat());
-    //o.push_back(p1[1].asFloat()+p2[1].asFloat());
-    //o.push_back(p1[2].asFloat()+p2[2].asFloat());
-  }else{
-    o.push_back(o[size-3]+p2[0].asFloat());
-    o.push_back(o[size-2]+p2[1].asFloat());
-    o.push_back(o[size-1]+p2[2].asFloat());
+  l.push_back(l_point.x());l.push_back(l_point.y());l.push_back(l_point.z());
+  r.push_back(r_point.x());r.push_back(r_point.y());r.push_back(r_point.z());
+  push_degrees(l_rot, l, EXYZ);
+  push_degrees(r_rot, r, EXYZ);
+
+  for(int i=1; i<left_hand.size(); ++i){
+    const Json::Value& lfinger = left_hand[i];
+    const Json::Value& rfinger = right_hand[i];
+    const Json::Value& lfinger_rot = left_hand_rot[i];
+    const Json::Value& rfinger_rot = right_hand_rot[i];
+
+    //BONE 1 2/3DOF
+    Eigen::Quaternionf lf_point1 = qutils::json2pquat(lfinger[1]);
+    Eigen::Quaternionf rf_point1 = qutils::json2rquat(rfinger[1]);
+    Eigen::Quaternionf lf_rot1   = qutils::json2pquat(lfinger_rot[1]);
+    Eigen::Quaternionf rf_rot1   = qutils::json2rquat(rfinger_rot[1]);
+    Eigen::Quaternionf lframe_point1, rframe_point1, lframe_rot1, rframe_rot1;
+    //Camera -> Finger0
+    qutils::transform(lf_point1, lf_rot1, l_point, l_rot, lframe_point1, lframe_rot1);
+    qutils::transform(rf_point1, rf_rot1, r_point, r_rot, rframe_point1, rframe_rot1);
+    if(i == left_hand.size()-1){
+      push_degrees(lframe_rot1, l, EXYZ);
+      push_degrees(rframe_rot1, r, EXYZ);
+    }else{
+      push_degrees(lframe_rot1, l, EXYZ);//TODO Check correct angles
+      push_degrees(lframe_rot1, l, EXYZ);
+    }
+
+    //BONE 2 1DOF
+    Eigen::Quaternionf lf_point2 = qutils::json2pquat(lfinger[2]);
+    Eigen::Quaternionf rf_point2 = qutils::json2rquat(rfinger[2]);
+    Eigen::Quaternionf lf_rot2   = qutils::json2pquat(lfinger_rot[2]);
+    Eigen::Quaternionf rf_rot2   = qutils::json2rquat(rfinger_rot[2]);
+    Eigen::Quaternionf lframe_point2, rframe_point2, lframe_rot2, rframe_rot2;
+    //Camera -> BONE 1
+    qutils::transform(lf_point2, lf_rot2, l_point, l_rot, lframe_point2, lframe_rot2);
+    qutils::transform(rf_point2, rf_rot2, r_point, r_rot, rframe_point2, rframe_rot2);
+    //BONE 0 -> BONE 2
+    qutils::transform(lframe_point2, lframe_rot2, lframe_point1, lframe_rot1, lframe_point2, lframe_point2);
+    qutils::transform(rframe_point2, rframe_rot2, rframe_point1, rframe_rot1, rframe_point2, rframe_point2);
+
+    //BONE 3
+    Eigen::Quaternionf lf_point3 = qutils::json2pquat(lfinger[3]);
+    Eigen::Quaternionf rf_point3 = qutils::json2rquat(rfinger[3]);
+    Eigen::Quaternionf lf_rot3   = qutils::json2pquat(lfinger_rot[3]);
+    Eigen::Quaternionf rf_rot3   = qutils::json2rquat(rfinger_rot[3]);
+    Eigen::Quaternionf lframe_point3, rframe_point3, lframe_rot3, rframe_rot3;
+    //Camera -> BONE 1
+    qutils::transform(lf_point3, lf_rot3, l_point, l_rot, lframe_point3, lframe_rot3);
+    qutils::transform(rf_point3, rf_point3, r_point, r_rot, rframe_point3, rframe_rot3);
+    //BONE 1 -> BONE 2
+    qutils::transform(lframe_point3, lframe_rot3, lframe_point1, lframe_rot1, lframe_point3, lframe_rot3);
+    qutils::transform(rframe_point3, rframe_rot3, rframe_point1, rframe_rot1, rframe_point3, rframe_rot3);
+    //BONE 2 -> BONE 3
+    qutils::transform(lframe_point3, lframe_rot3, lframe_point2, lframe_rot2, lframe_point3, lframe_rot3);
+    qutils::transform(rframe_point3, rframe_rot3, rframe_point2, rframe_rot2, rframe_point3, rframe_rot3);
   }
 }
 
 //TODO first parameter doesn't used, valorate to delete.
 void relative(bool init_finger, const Json::Value& p2, std::vector<float>& o){
+  int size = o.size();
+  if(init_finger){
+    o.push_back(p2[0].asFloat()-o[0]);
+    o.push_back(p2[1].asFloat()-o[1]);
+    o.push_back(p2[2].asFloat()-o[2]);
+    //o.push_back(p1[0].asFloat()+p2[0].asFloat());
+    //o.push_back(p1[1].asFloat()+p2[1].asFloat());
+    //o.push_back(p1[2].asFloat()+p2[2].asFloat());
+  }else{
+    o.push_back(p2[0].asFloat()-o[size-3]);
+    o.push_back(p2[1].asFloat()-o[size-2]);
+    o.push_back(p2[2].asFloat()-o[size-1]);
+  }
+}
+
+//TODO first parameter doesn't used, valorate to delete.
+void absolute(bool init_finger, const Json::Value& p2, std::vector<float>& o){
   o.push_back(p2[0].asFloat());
   o.push_back(p2[1].asFloat());
   o.push_back(p2[2].asFloat());
