@@ -19,8 +19,10 @@
 #include <pcl/point_types.h>
 #include <jsoncpp/json/json.h>
 #include "utils/transformation.hpp"
+#include "utils/hand_model.h"
 //#include <iostream>
 //#include <filesystem>
+#include <typeinfo>
 
 //static std::string ROOT="data/unrealhands/raw/";
 #define PARAM_ROOT "root"
@@ -62,9 +64,10 @@ void downsample(const pcl::PointCloud<pcl::PointXYZRGB>::Ptr& cloud, pcl::PointC
   sor.filter (*downsampled);
 }
 
-void push_degrees(const Eigen::Quaternionf& rot, std::vector<float>& degrees, EULERAXIS mode){
+void push_degrees(const Eigen::Quaterniond& rot, std::vector<float>& degrees, EULERAXIS mode){
   auto eulers = rot.toRotationMatrix().eulerAngles(0,1,2);
   std::cout << eulers << std::endl;
+  std::cout << std::endl;
   switch(mode){
     case EX:
       degrees.push_back(eulers[0]);
@@ -95,6 +98,11 @@ void push_degrees(const Eigen::Quaternionf& rot, std::vector<float>& degrees, EU
     default:
       break;
   }
+}
+
+void push_quaternions(const Eigen::Quaterniond& pos, const Eigen::Quaterniond& rot, std::vector<float>& out){
+  out.push_back(pos.x());out.push_back(pos.y());out.push_back(pos.z());
+  out.push_back(rot.w());out.push_back(rot.x());out.push_back(rot.y());out.push_back(rot.z());
 }
 
 void read_ground_truth_json(const std::string& filename,
@@ -142,19 +150,17 @@ void read_ground_truth_json(const std::string& filename,
     right.push_back(r);
   }
   //*****************************************//
-  //TODO make it clean. 26/27 DOF Generation //
+  //TODO make it clean. 48 DOF Generation //
   //*****************************************//
   std::vector<float> l,r;
   //HAND_ROOT 6DOF
-  Eigen::Quaternionf l_point = qutils::json2pquat(left_hand[0]);
-  Eigen::Quaternionf r_point = qutils::json2pquat(right_hand[0]);
-  Eigen::Quaternionf l_rot   = qutils::json2rquat(left_hand_rot[0]);
-  Eigen::Quaternionf r_rot   = qutils::json2rquat(right_hand_rot[0]);
+  Eigen::Quaterniond l_point = qutils::json2pquat(left_hand[0]);
+  Eigen::Quaterniond r_point = qutils::json2pquat(right_hand[0]);
+  Eigen::Quaterniond l_rot   = qutils::json2rquat(left_hand_rot[0]);
+  Eigen::Quaterniond r_rot   = qutils::json2rquat(right_hand_rot[0]);
 
-  l.push_back(l_point.x());l.push_back(l_point.y());l.push_back(l_point.z());
-  r.push_back(r_point.x());r.push_back(r_point.y());r.push_back(r_point.z());
-  push_degrees(l_rot, l, EXYZ);
-  push_degrees(r_rot, r, EXYZ);
+  push_quaternions(l_point, l_rot, l);
+  push_quaternions(r_point, r_rot, r);
 
   for(int i=1; i<left_hand.size(); ++i){
     const Json::Value& lfinger = left_hand[i];
@@ -162,51 +168,59 @@ void read_ground_truth_json(const std::string& filename,
     const Json::Value& lfinger_rot = left_hand_rot[i];
     const Json::Value& rfinger_rot = right_hand_rot[i];
 
-    //BONE 1 2/3DOF
-    Eigen::Quaternionf lf_point1 = qutils::json2pquat(lfinger[1]);
-    Eigen::Quaternionf rf_point1 = qutils::json2rquat(rfinger[1]);
-    Eigen::Quaternionf lf_rot1   = qutils::json2pquat(lfinger_rot[1]);
-    Eigen::Quaternionf rf_rot1   = qutils::json2rquat(rfinger_rot[1]);
-    Eigen::Quaternionf lframe_point1, rframe_point1, lframe_rot1, rframe_rot1;
-    //Camera -> Finger0
-    qutils::transform(lf_point1, lf_rot1, l_point, l_rot, lframe_point1, lframe_rot1);
-    qutils::transform(rf_point1, rf_rot1, r_point, r_rot, rframe_point1, rframe_rot1);
-    if(i == left_hand.size()-1){
-      push_degrees(lframe_rot1, l, EXYZ);
-      push_degrees(rframe_rot1, r, EXYZ);
-    }else{
-      push_degrees(lframe_rot1, l, EXYZ);//TODO Check correct angles
-      push_degrees(lframe_rot1, l, EXYZ);
-    }
+    //BONE 1
+    Eigen::Quaterniond lf_point0 = qutils::json2pquat(lfinger[0]);
+    Eigen::Quaterniond rf_point0 = qutils::json2pquat(rfinger[0]);
+    Eigen::Quaterniond lf_rot0   = qutils::json2rquat(lfinger_rot[0]);
+    Eigen::Quaterniond rf_rot0   = qutils::json2rquat(rfinger_rot[0]);
+    Eigen::Quaterniond lframe_point0, rframe_point0, lframe_rot0, rframe_rot0;
 
-    //BONE 2 1DOF
-    Eigen::Quaternionf lf_point2 = qutils::json2pquat(lfinger[2]);
-    Eigen::Quaternionf rf_point2 = qutils::json2rquat(rfinger[2]);
-    Eigen::Quaternionf lf_rot2   = qutils::json2pquat(lfinger_rot[2]);
-    Eigen::Quaternionf rf_rot2   = qutils::json2rquat(rfinger_rot[2]);
-    Eigen::Quaternionf lframe_point2, rframe_point2, lframe_rot2, rframe_rot2;
-    //Camera -> BONE 1
-    qutils::transform(lf_point2, lf_rot2, l_point, l_rot, lframe_point2, lframe_rot2);
-    qutils::transform(rf_point2, rf_rot2, r_point, r_rot, rframe_point2, rframe_rot2);
-    //BONE 0 -> BONE 2
-    qutils::transform(lframe_point2, lframe_rot2, lframe_point1, lframe_rot1, lframe_point2, lframe_point2);
-    qutils::transform(rframe_point2, rframe_rot2, rframe_point1, rframe_rot1, rframe_point2, rframe_point2);
+    qutils::transform(l_point, l_rot, lf_point0, lf_rot0, lframe_point0, lframe_rot0);
+    qutils::transform(r_point, r_rot, rf_point0, rf_rot0, rframe_point0, rframe_rot0);
+    qutils::transform(*lhand::points[i-1][0], *lhand::rotations[i-1][0], lframe_point0, lframe_rot0, lframe_point0, lframe_rot0);
+    qutils::transform(*rhand::points[i-1][0], *rhand::rotations[i-1][0], rframe_point0, rframe_rot0, rframe_point0, rframe_rot0);
+
+    push_quaternions(lframe_point0, lframe_rot0, l);
+    push_quaternions(rframe_point0, rframe_rot0, r);
+
+    //BONE 2
+    Eigen::Quaterniond lf_point1 = qutils::json2pquat(lfinger[1]);
+    Eigen::Quaterniond rf_point1 = qutils::json2pquat(rfinger[1]);
+    Eigen::Quaterniond lf_rot1   = qutils::json2rquat(lfinger_rot[1]);
+    Eigen::Quaterniond rf_rot1   = qutils::json2rquat(rfinger_rot[1]);
+    Eigen::Quaterniond lframe_point1, rframe_point1, lframe_rot1, rframe_rot1;
+
+    qutils::transform(lf_point0, lf_rot0, lf_point1, lf_rot1, lframe_point1, lframe_rot1);
+    qutils::transform(rf_point0, rf_rot0, rf_point1, rf_rot1, rframe_point1, rframe_rot1);
+    qutils::transform(*lhand::points[i-1][1], *lhand::rotations[i-1][1], lframe_point1, lframe_rot1, lframe_point1, lframe_rot1);
+    qutils::transform(*rhand::points[i-1][1], *rhand::rotations[i-1][1], rframe_point1, rframe_rot1, rframe_point1, rframe_rot1);
 
     //BONE 3
-    Eigen::Quaternionf lf_point3 = qutils::json2pquat(lfinger[3]);
-    Eigen::Quaternionf rf_point3 = qutils::json2rquat(rfinger[3]);
-    Eigen::Quaternionf lf_rot3   = qutils::json2pquat(lfinger_rot[3]);
-    Eigen::Quaternionf rf_rot3   = qutils::json2rquat(rfinger_rot[3]);
-    Eigen::Quaternionf lframe_point3, rframe_point3, lframe_rot3, rframe_rot3;
-    //Camera -> BONE 1
-    qutils::transform(lf_point3, lf_rot3, l_point, l_rot, lframe_point3, lframe_rot3);
-    qutils::transform(rf_point3, rf_point3, r_point, r_rot, rframe_point3, rframe_rot3);
-    //BONE 1 -> BONE 2
-    qutils::transform(lframe_point3, lframe_rot3, lframe_point1, lframe_rot1, lframe_point3, lframe_rot3);
-    qutils::transform(rframe_point3, rframe_rot3, rframe_point1, rframe_rot1, rframe_point3, rframe_rot3);
-    //BONE 2 -> BONE 3
-    qutils::transform(lframe_point3, lframe_rot3, lframe_point2, lframe_rot2, lframe_point3, lframe_rot3);
-    qutils::transform(rframe_point3, rframe_rot3, rframe_point2, rframe_rot2, rframe_point3, rframe_rot3);
+    Eigen::Quaterniond lf_point2 = qutils::json2pquat(lfinger[2]);
+    Eigen::Quaterniond rf_point2 = qutils::json2pquat(rfinger[2]);
+    Eigen::Quaterniond lf_rot2   = qutils::json2rquat(lfinger_rot[2]);
+    Eigen::Quaterniond rf_rot2   = qutils::json2rquat(rfinger_rot[2]);
+    Eigen::Quaterniond lframe_point2, rframe_point2, lframe_rot2, rframe_rot2;
+
+    qutils::transform(lf_point1, lf_rot1, lf_point2, lf_rot2, lframe_point2, lframe_rot2);
+    qutils::transform(rf_point1, rf_rot1, rf_point2, rf_rot2, rframe_point2, rframe_rot2);
+    qutils::transform(*lhand::points[i-1][2], *lhand::rotations[i-1][2], lframe_point2, lframe_rot2, lframe_point2, lframe_rot2);
+    qutils::transform(*rhand::points[i-1][2], *rhand::rotations[i-1][2], rframe_point2, rframe_rot2, rframe_point2, rframe_rot2);
+
+    left.push_back(l);
+    right.push_back(r);
+
+    /*if(i==1){//TODO test delete
+      Eigen::Quaterniond diff = lf_rot2 * lf_rot1.inverse();
+      std::cout << diff.w() << " " << diff.x() << " " << diff.y() << " " << diff.z() << std::endl;
+      Eigen::Matrix3d aux  = (lf_rot2.toRotationMatrix() * lf_rot1.toRotationMatrix().transpose());
+      Eigen::Vector3d aux2 = (lf_rot2.toRotationMatrix() * lf_point2.vec());
+      Eigen::Vector3d aux3 = aux * (lf_rot1.cast<double>().toRotationMatrix() * lf_point2.cast<double>().vec());
+      std::cout << "Test" << std::endl;
+      std::vector<double> angles(3);
+      qutils::quaternion2euler(diff, angles, qutils::RAXIS::RXYZ);
+      qutils::print(angles);
+    }*/
   }
 }
 
@@ -217,9 +231,6 @@ void relative(bool init_finger, const Json::Value& p2, std::vector<float>& o){
     o.push_back(p2[0].asFloat()-o[0]);
     o.push_back(p2[1].asFloat()-o[1]);
     o.push_back(p2[2].asFloat()-o[2]);
-    //o.push_back(p1[0].asFloat()+p2[0].asFloat());
-    //o.push_back(p1[1].asFloat()+p2[1].asFloat());
-    //o.push_back(p1[2].asFloat()+p2[2].asFloat());
   }else{
     o.push_back(p2[0].asFloat()-o[size-3]);
     o.push_back(p2[1].asFloat()-o[size-2]);
@@ -253,15 +264,6 @@ void generate_ground_truth(const std::string& filename,
       operations.push_back(absolute);
       break;
   }
-
-  /*
-  if(relative)
-    operations.push_back([](const Json::Value& p1, const Json::Value& p2, std::vector<float>& o){
-        o.push_back(p1[0].asFloat()+p2[0].asFloat());o.push_back(p1[1].asFloat()+p2[1].asFloat());o.push_back(p1[2].asFloat()+p2[2].asFloat());});
-  else
-    operations.push_back([](const Json::Value& p1, const Json::Value& p2, std::vector<float>& o){
-        o.push_back(p2[0].asFloat());o.push_back(p2[1].asFloat());o.push_back(p2[2].asFloat());});
-  */
 
   read_ground_truth_json(filename, operations, left_hand, right_hand);
 }
@@ -308,17 +310,26 @@ void writeHaplyFromPCL(const pcl::PointCloud<pcl::PointXYZRGB>::Ptr& cloud,
       break;
   }
 
+  //Always not relative.
   if(mode != GT_RELATIVE){
-    std::vector<float> jx, jy, jz;
-    for(int i=0; i<ground_truth[1].size(); i+=3){
-      jx.push_back(ground_truth[1][i]);
-      jy.push_back(ground_truth[1][i+1]);
-      jz.push_back(ground_truth[1][i+2]);
+    std::vector<float> x, y, z, qw, qx, qy, qz;
+    for(int i=0; i<ground_truth[2].size(); i+=7){
+      x.push_back(ground_truth[2][i]);
+      y.push_back(ground_truth[2][i+1]);
+      z.push_back(ground_truth[2][i+2]);
+      qw.push_back(ground_truth[2][i+3]);
+      qx.push_back(ground_truth[2][i+4]);
+      qy.push_back(ground_truth[2][i+5]);
+      qz.push_back(ground_truth[2][i+6]);
     }
-    plyOut.addElement("joints", jx.size());
-    plyOut.getElement("joints").addProperty<float>("x", jx);
-    plyOut.getElement("joints").addProperty<float>("y", jy);
-    plyOut.getElement("joints").addProperty<float>("z", jz);
+    plyOut.addElement("joints", x.size());
+    plyOut.getElement("joints").addProperty<float>("x", x);
+    plyOut.getElement("joints").addProperty<float>("y", y);
+    plyOut.getElement("joints").addProperty<float>("z", z);
+    plyOut.getElement("joints").addProperty<float>("qw", qw);
+    plyOut.getElement("joints").addProperty<float>("qx", qx);
+    plyOut.getElement("joints").addProperty<float>("qy", qy);
+    plyOut.getElement("joints").addProperty<float>("qz", qz);
   }
 
   plyOut.write(output_name, happly::DataFormat::Binary);
