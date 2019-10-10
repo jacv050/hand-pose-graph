@@ -6,7 +6,6 @@ from torch_geometric.nn import global_mean_pool, global_max_pool
 
 from torch_geometric.nn import GCNConv, TopKPooling, max_pool_x, graclus, voxel_grid, max_pool, avg_pool
 import random
-from network_3d.nlinear_layer import NLinearLayer
 import math
 
 class GCN_test(torch.nn.Module):
