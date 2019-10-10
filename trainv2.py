@@ -144,11 +144,13 @@ def train(args):
         model_.train()
         LOG.info("Training epoch {0} out of {1}".format(epoch+1, args.epochs))
 
+        """ s
         if epoch > 99:
           e = epoch/100
           lr = np.power(10,-e) * args.lr
           for param_group in optimizer_.param_groups:
             param_group['lr'] = lr
+        """
 
         loss_all = 0
 
@@ -175,12 +177,12 @@ def train(args):
               loss_ = sum(losses_)
               loss_all += loss_.item()
 
-              reg_loss = 0
-              for param in model_.parameters():
-                reg_loss = torch.sum(torch.abs(param)) + reg_loss
+              #reg_loss = 0
+              #for param in model_.parameters():
+              #  reg_loss = torch.sum(torch.abs(param)) + reg_loss
 
-              l1_lambda = 0.00005
-              loss_ = loss_ + l1_lambda * reg_loss
+              #l1_lambda = 0 #0.00005
+              #loss_ = loss_ + l1_lambda * reg_loss
 
               loss_.backward()
               optimizer_.step()
@@ -195,11 +197,11 @@ def train(args):
           f.write(str(loss_all/counter))
 
         # Evaluate on training set
-        #"""
+        """ s
         if (epoch + 1) % 1 == 0:
 
             model_.eval()
-            correct_ = np.zeros(48)
+            correct_ = np.zeros(64)
 
             j = 1
 
@@ -214,15 +216,16 @@ def train(args):
               aux = pred_
               aux2 = batch.y
               #aux = batch.y
-              l = [aux[i].item() for i in range(48)]
-              ground_truth = [aux2[i].item() for i in range(48)]
+              l = [aux[i].item() for i in range(64)]
+              ground_truth = [aux2[i].item() for i in range(64)]
               #l = aux.cpu()
               correct_ += np.array(l)
 
+              save_test = False
               if save_test :
                 save_test = False
                 gnt_cloud.save_ply_cloud(np.transpose(b.pos.cpu(), (0,1)), np.transpose( b.x.cpu(), (0,1)), 'output_clouds/output_cloud_{}.ply'.format(epoch+1))
-                joints  = np.array(generate_listofpoints(l))
+                joints  = np.array(generate_listofpoints2(l))
                 print(joints.shape)
                 gnt_cloud.save_ply_cloud(joints, np.repeat([[255,255,255]], joints.shape[0], axis=0),'outputs_joints/output_joints_{}.ply'.format(epoch+1))
                 torch.save(model_.state_dict(), 'models/model_{}.pt'.format(str(epoch).zfill(3)))
@@ -242,7 +245,7 @@ def train(args):
                 #  data.save()
             j = j+1
             #print(correct_/counter)
-        #"""
+        """
 
         #    correct_ = 0
 
@@ -298,7 +301,7 @@ if __name__ == "__main__":
     PARSER_ = argparse.ArgumentParser(description="Parameters")
     PARSER_.add_argument("--batch_size", nargs="?", type=int, default=1, help="Batch Size")
     PARSER_.add_argument("--epochs", nargs="?", type=int, default=128, help="Training Epochs")
-    PARSER_.add_argument("--lr", nargs="?", type=float, default=0.001, help="Learning Rate")
+    PARSER_.add_argument("--lr", nargs="?", type=float, default=0.01, help="Learning Rate")
     PARSER_.add_argument("--k", nargs="?", type=int, default=7, help="k Nearest Neighbors")
     PARSER_.add_argument("--net", nargs="?", default="GCN_testv2", help="Network model")
     PARSER_.add_argument("--loss", nargs="?", default="mean_absolute_error", help="Loss criterion")

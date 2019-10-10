@@ -103,7 +103,7 @@ def train(args):
         args : The arguments of the main program.
     """
 
-    dataset_ = dataset.unrealhands_otf.UnrealHands(root="data/unrealhands-validation", k=args.k)
+    dataset_ = dataset.unrealhands_otf.UnrealHands(root="data/unrealhands", k=args.k)
     LOG.info("Training dataset...")
     LOG.info(dataset_)
     train_loader_ = DataLoader(dataset_,
