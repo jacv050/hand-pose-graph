@@ -31,6 +31,7 @@
 #define PARAM_GROUND_TRUTH "ground_truth"
 #define PARAM_VOXEL_GRID_SIZE "voxel_size"
 #define PARAM_CURVATURE_SMOOTHNESS "curvature_smoothness"
+#define PARAM_MAX_SIZE "max_size"
 enum GT{GT_ALL=0, GT_RELATIVE=1, GT_ABSOLUTE=2};
 enum EULERAXIS{EX, EY, EZ, EXY, EXZ, EYZ, EXYZ};
 
@@ -40,9 +41,10 @@ bool parse_command_line_options(boost::program_options::variables_map & pVariabl
     desc.add_options()
       (PARAM_HELP, "Produce help message")
       (PARAM_ROOT, boost::program_options::value<std::string>()->default_value("../../data/unrealhands/raw"), "Root directory")
-      (PARAM_VOXEL_GRID_SIZE, boost::program_options::value<float>()->default_value(0.01), "Voxel grid size")
+      (PARAM_VOXEL_GRID_SIZE, boost::program_options::value<float>()->default_value(0.05), "Voxel grid size")
       (PARAM_CURVATURE_SMOOTHNESS, boost::program_options::value<float>()->default_value(7.), "Curvature smoothness value")
       //(PARAM_RELATIVE, boost::program_options::value<bool>()->default_value(false), "Relative or absolute ground truth generation.");
+      (PARAM_MAX_SIZE, boost::program_options::value<int>()->default_value(1000), "Clouds sampled above this number are deleted.")
       (PARAM_GROUND_TRUTH, boost::program_options::value<uint8_t>()->default_value(0), "(Default)ALL=0, RELATIVE=1, ABSOLUTE=2");
     boost::program_options::store(boost::program_options::parse_command_line(pArgc, pArgv, desc), pVariablesMap);
     if (pVariablesMap.count(PARAM_HELP)){
@@ -195,6 +197,9 @@ void read_ground_truth_json(const std::string& filename,
     qutils::transform(*lhand::points[i-1][1], *lhand::rotations[i-1][1], lframe_point1, lframe_rot1, lframe_point1, lframe_rot1);
     qutils::transform(*rhand::points[i-1][1], *rhand::rotations[i-1][1], rframe_point1, rframe_rot1, rframe_point1, rframe_rot1);
 
+    push_quaternions(lframe_point1, lframe_rot1, l);
+    push_quaternions(rframe_point1, rframe_rot1, r);
+
     //BONE 3
     Eigen::Quaterniond lf_point2 = qutils::json2pquat(lfinger[2]);
     Eigen::Quaterniond rf_point2 = qutils::json2pquat(rfinger[2]);
@@ -207,8 +212,8 @@ void read_ground_truth_json(const std::string& filename,
     qutils::transform(*lhand::points[i-1][2], *lhand::rotations[i-1][2], lframe_point2, lframe_rot2, lframe_point2, lframe_rot2);
     qutils::transform(*rhand::points[i-1][2], *rhand::rotations[i-1][2], rframe_point2, rframe_rot2, rframe_point2, rframe_rot2);
 
-    left.push_back(l);
-    right.push_back(r);
+    push_quaternions(lframe_point2, lframe_rot2, l);
+    push_quaternions(rframe_point2, rframe_rot2, r);
 
     /*if(i==1){//TODO test delete
       Eigen::Quaterniond diff = lf_rot2 * lf_rot1.inverse();
@@ -222,6 +227,9 @@ void read_ground_truth_json(const std::string& filename,
       qutils::print(angles);
     }*/
   }
+
+  left.push_back(l);
+  right.push_back(r);
 }
 
 //TODO first parameter doesn't used, valorate to delete.
@@ -481,6 +489,7 @@ int main (int argc, char** argv){
 
   float grid_size = variablesMap[PARAM_VOXEL_GRID_SIZE].as<float>();
   float curvature_smoothness = variablesMap[PARAM_CURVATURE_SMOOTHNESS].as<float>();
+  int max_size = variablesMap[PARAM_MAX_SIZE].as<int>();
 
   for (const auto & entry : boost::make_iterator_range(boost::filesystem::directory_iterator(root), {})){
     std::string in_dir = entry.path().string() + "/cloud";
@@ -544,8 +553,11 @@ int main (int argc, char** argv){
         //cluster cloud GROUND TRUTH 1 = ABSOLUTE
         separete_hands(downsampled, left_hand, right_hand, gt_left_hand[1], gt_right_hand[1], curvature_smoothness);
 
-        writeHaplyFromPCL(left_hand, gt, gt_left_hand, loutput_name);
-        writeHaplyFromPCL(right_hand, gt, gt_right_hand, routput_name);
+        //Filter clouds max sized
+        if(left_hand->points.size() <= max_size && right_hand->points.size() <= max_size){
+          writeHaplyFromPCL(left_hand, gt, gt_left_hand, loutput_name);
+          writeHaplyFromPCL(right_hand, gt, gt_right_hand, routput_name);
+        }
       }
       }
       //}
