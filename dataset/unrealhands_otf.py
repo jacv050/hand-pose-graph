@@ -23,7 +23,7 @@ LOG = logging.getLogger(__name__)
 
 class UnrealHands(Dataset):
 
-  def _create_graph(self, cloud, k, labels):
+  def _create_graph(self, cloud, k, labels, radius):
 
     graph_x_ = torch.tensor(np.vstack((cloud['vertex']['red'],
                                       cloud['vertex']['green'],
@@ -40,7 +40,7 @@ class UnrealHands(Dataset):
 
     tree_ = scipy.spatial.cKDTree(points_)
 
-    _, idxs_ = tree_.query(points_, k=k + 1) # Closest point will be the point itself, so k + 1
+    _, idxs_ = tree_.query(points_, k=k + 1, distance_upper_bound=radius) # Closest point will be the point itself, so k + 1
 
     idxs_ = idxs_[:, 1:] # Remove closest point, which is the point itself
 
@@ -70,10 +70,11 @@ class UnrealHands(Dataset):
     data_ = Data(x = graph_x_, edge_index = graph_edge_index_, pos = graph_pos_, y = graph_y_)
     return data_
 
-  def __init__(self, root, k=3, transform=None, pre_transform=None):
+  def __init__(self, root, k=3, radius, transform=None, pre_transform=None):
     self.cloud_folder = "cloud_sampled"
     self.aux_max = 0
     self.k = k
+    self.radius=radius
 
     super(UnrealHands, self).__init__(root, transform, pre_transform)
 
@@ -178,7 +179,7 @@ class UnrealHands(Dataset):
       print(self.raw_paths_processed[p])
       cloud_ = PlyData.read(f)
       if(len(cloud_['vertex']['x']) > 0):
-      	graph_ = self._create_graph(cloud_, self.k, labels)
+      	graph_ = self._create_graph(cloud_, self.k, labels, self.radius)
       	torch.save(graph_, os.path.join(self.processed_dir, "unrealhands_k{0}_{1}.pt".format(self.k, p)))
 
   def process(self):
