@@ -3,6 +3,7 @@
 
 #include <Eigen/Geometry>
 #include <jsoncpp/json/json.h>
+#include <math.h>
 
 namespace qutils{
 
@@ -98,6 +99,7 @@ void quaternion2euler(const Eigen::Quaterniond& q, std::vector<double>& res, RAX
           2*(q.x()*q.y() + q.w()*q.z()),
           q.w()*q.w() - q.x()*q.x() + q.y()*q.y() - q.z()*q.z(),
           res);
+      break;
     case RYZX:
      rot3(-2*(q.x()*q.z() - q.w()*q.y()),
          q.w()*q.w() + q.x()*q.x() - q.y()*q.y() - q.z()*q.z(),
@@ -105,6 +107,7 @@ void quaternion2euler(const Eigen::Quaterniond& q, std::vector<double>& res, RAX
          -2*(q.y()*q.z() - q.w()*q.x()),
          q.w()*q.w() - q.x()*q.x() + q.y()*q.y() - q.z()*q.z(),
          res);
+      break;
     case RZXY:
       rot3(-2*(q.x()*q.y() - q.w()*q.z()),
           q.w()*q.w() - q.x()*q.x() + q.y()*q.y() - q.z()*q.z(),
@@ -112,6 +115,7 @@ void quaternion2euler(const Eigen::Quaterniond& q, std::vector<double>& res, RAX
           -2*(q.x()*q.z() - q.w()*q.y()),
           q.w()*q.w() - q.x()*q.x() - q.y()*q.y() + q.z()*q.z(),
           res);
+      break;
     case RZYX:
       rot3(2*(q.x()*q.y() + q.w()*q.z()),
           q.w()*q.w() + q.x()*q.x() - q.y()*q.y() - q.z()*q.z(),
@@ -119,7 +123,15 @@ void quaternion2euler(const Eigen::Quaterniond& q, std::vector<double>& res, RAX
           2*(q.y()*q.z() + q.w()*q.x()),
           q.w()*q.w() - q.x()*q.x() - q.y()*q.y() + q.z()*q.z(),
           res);
+       break;
   }
+}
+
+void print_deg(const std::vector<double> &v){
+  for(int i=0; i<v.size(); ++i){
+    std::cout << v[i]*180/M_PI << " ";
+  }
+  std::cout << std::endl;
 }
 
 void print(const std::vector<double>& v){
@@ -127,6 +139,10 @@ void print(const std::vector<double>& v){
     std::cout << v[i] << " ";
   }
   std::cout << std::endl;
+}
+
+void printq(const Eigen::Quaterniond& q){
+  std::cout << q.w() << " " << q.x() << " " << q.y() << " " << q.z() << std::endl;
 }
 
 }

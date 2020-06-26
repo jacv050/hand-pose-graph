@@ -164,6 +164,7 @@ void read_ground_truth_json(const std::string& filename,
   push_quaternions(l_point, l_rot, l);
   push_quaternions(r_point, r_rot, r);
 
+  //i fingers
   for(int i=1; i<left_hand.size(); ++i){
     const Json::Value& lfinger = left_hand[i];
     const Json::Value& rfinger = right_hand[i];
@@ -179,8 +180,8 @@ void read_ground_truth_json(const std::string& filename,
 
     qutils::transform(l_point, l_rot, lf_point0, lf_rot0, lframe_point0, lframe_rot0);
     qutils::transform(r_point, r_rot, rf_point0, rf_rot0, rframe_point0, rframe_rot0);
-    qutils::transform(*lhand::points[i-1][0], *lhand::rotations[i-1][0], lframe_point0, lframe_rot0, lframe_point0, lframe_rot0);
-    qutils::transform(*rhand::points[i-1][0], *rhand::rotations[i-1][0], rframe_point0, rframe_rot0, rframe_point0, rframe_rot0);
+    //qutils::transform(*lhand::points[i-1][0], *lhand::rotations[i-1][0], lframe_point0, lframe_rot0, lframe_point0, lframe_rot0);
+    //qutils::transform(*rhand::points[i-1][0], *rhand::rotations[i-1][0], rframe_point0, rframe_rot0, rframe_point0, rframe_rot0);
 
     push_quaternions(lframe_point0, lframe_rot0, l);
     push_quaternions(rframe_point0, rframe_rot0, r);
@@ -194,8 +195,8 @@ void read_ground_truth_json(const std::string& filename,
 
     qutils::transform(lf_point0, lf_rot0, lf_point1, lf_rot1, lframe_point1, lframe_rot1);
     qutils::transform(rf_point0, rf_rot0, rf_point1, rf_rot1, rframe_point1, rframe_rot1);
-    qutils::transform(*lhand::points[i-1][1], *lhand::rotations[i-1][1], lframe_point1, lframe_rot1, lframe_point1, lframe_rot1);
-    qutils::transform(*rhand::points[i-1][1], *rhand::rotations[i-1][1], rframe_point1, rframe_rot1, rframe_point1, rframe_rot1);
+    //qutils::transform(*lhand::points[i-1][1], *lhand::rotations[i-1][1], lframe_point1, lframe_rot1, lframe_point1, lframe_rot1);
+    //qutils::transform(*rhand::points[i-1][1], *rhand::rotations[i-1][1], rframe_point1, rframe_rot1, rframe_point1, rframe_rot1);
 
     push_quaternions(lframe_point1, lframe_rot1, l);
     push_quaternions(rframe_point1, rframe_rot1, r);
@@ -209,13 +210,21 @@ void read_ground_truth_json(const std::string& filename,
 
     qutils::transform(lf_point1, lf_rot1, lf_point2, lf_rot2, lframe_point2, lframe_rot2);
     qutils::transform(rf_point1, rf_rot1, rf_point2, rf_rot2, rframe_point2, rframe_rot2);
-    qutils::transform(*lhand::points[i-1][2], *lhand::rotations[i-1][2], lframe_point2, lframe_rot2, lframe_point2, lframe_rot2);
-    qutils::transform(*rhand::points[i-1][2], *rhand::rotations[i-1][2], rframe_point2, rframe_rot2, rframe_point2, rframe_rot2);
+    //qutils::transform(*lhand::points[i-1][2], *lhand::rotations[i-1][2], lframe_point2, lframe_rot2, lframe_point2, lframe_rot2);
+    //qutils::transform(*rhand::points[i-1][2], *rhand::rotations[i-1][2], rframe_point2, rframe_rot2, rframe_point2, rframe_rot2);
 
     push_quaternions(lframe_point2, lframe_rot2, l);
     push_quaternions(rframe_point2, rframe_rot2, r);
 
-    /*if(i==1){//TODO test delete
+    if(i==1){
+      std::vector<double> angles(3);
+      qutils::quaternion2euler(rframe_rot1, angles, qutils::RAXIS::RXZY);
+      //qutils::printq(rframe_rot2);
+      qutils::print_deg(angles);
+    }
+
+    /**
+    if(i==1){//TODO test delete
       Eigen::Quaterniond diff = lf_rot2 * lf_rot1.inverse();
       std::cout << diff.w() << " " << diff.x() << " " << diff.y() << " " << diff.z() << std::endl;
       Eigen::Matrix3d aux  = (lf_rot2.toRotationMatrix() * lf_rot1.toRotationMatrix().transpose());
@@ -225,7 +234,7 @@ void read_ground_truth_json(const std::string& filename,
       std::vector<double> angles(3);
       qutils::quaternion2euler(diff, angles, qutils::RAXIS::RXYZ);
       qutils::print(angles);
-    }*/
+    }**/
   }
 
   left.push_back(l);
@@ -496,6 +505,11 @@ int main (int argc, char** argv){
     std::string out_dir = entry.path().string() + "/cloud_sampled";
     std::string joints = entry.path().string() + "/joints";
     //std::cout << in_dir << "\n" << out_dir << std::endl;
+
+    //Check cloud_sampled dir
+    if(!boost::filesystem::is_directory(out_dir))
+      boost::filesystem::create_directory(out_dir);
+
     for (const auto & centry : boost::make_iterator_range(boost::filesystem::directory_iterator(in_dir), {})){
       //std::ostringstream oss;
       //oss << centry;
@@ -504,10 +518,15 @@ int main (int argc, char** argv){
       std::string cout_dir = out_dir + "/" + camera;
       std::string cjoints = joints + "/" + camera;
 
+      if(!boost::filesystem::is_directory(cout_dir))
+        boost::filesystem::create_directory(cout_dir);
+
       std::vector<boost::filesystem::directory_entry> v;
       auto begin = boost::filesystem::directory_iterator(cin_dir);
       auto end = boost::filesystem::directory_iterator();
       copy(begin, end, back_inserter(v));
+
+      //std::cout << cin_dir << std::endl;
 
       #pragma omp parallel for
       for(int i=0; i<v.size(); ++i){
