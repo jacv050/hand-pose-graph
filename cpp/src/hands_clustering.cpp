@@ -59,6 +59,27 @@ bool parse_command_line_options(boost::program_options::variables_map & pVariabl
   return false;
 }
 
+//TODO first parameter doesn't used, valorate to delete.
+void relative(bool init_finger, const Json::Value& p2, std::vector<float>& o){
+  int size = o.size();
+  if(init_finger){
+    o.push_back(p2[0].asFloat()-o[0]);
+    o.push_back(p2[1].asFloat()-o[1]);
+    o.push_back(p2[2].asFloat()-o[2]);
+  }else{
+    o.push_back(p2[0].asFloat()-o[size-3]);
+    o.push_back(p2[1].asFloat()-o[size-2]);
+    o.push_back(p2[2].asFloat()-o[size-1]);
+  }
+}
+
+//TODO first parameter doesn't used, valorate to delete.
+void absolute(bool init_finger, const Json::Value& p2, std::vector<float>& o){
+  o.push_back(p2[0].asFloat());
+  o.push_back(p2[1].asFloat());
+  o.push_back(p2[2].asFloat());
+}
+
 void downsample(const pcl::PointCloud<pcl::PointXYZRGB>::Ptr& cloud, pcl::PointCloud<pcl::PointXYZRGB>::Ptr& downsampled, float grid_size){
   pcl::VoxelGrid<pcl::PointXYZRGB> sor;
   sor.setInputCloud (cloud);
@@ -124,6 +145,9 @@ void read_ground_truth_json(const std::string& filename,
   const Json::Value& left_hand_rot = obj["left_hand_rot"];
   const Json::Value& right_hand_rot = obj["right_hand_rot"];
 
+  const Json::Value& left_hand_kin = obj["left_hand_kin"];
+  const Json::Value& right_hand_kin = obj["right_hand_kin"];
+
   //operations order -> relative, absolute, ...
   for(int k=0; k<operations.size(); ++k){
     std::vector<float> l, r;
@@ -151,15 +175,18 @@ void read_ground_truth_json(const std::string& filename,
     left.push_back(l);
     right.push_back(r);
   }
+
   //*****************************************//
   //TODO make it clean. 48 DOF Generation //
   //*****************************************//
   std::vector<float> l,r;
   //HAND_ROOT 6DOF
-  Eigen::Quaterniond l_point = qutils::json2pquat(left_hand[0]);
-  Eigen::Quaterniond r_point = qutils::json2pquat(right_hand[0]);
-  Eigen::Quaterniond l_rot   = qutils::json2rquat(left_hand_rot[0]);
-  Eigen::Quaterniond r_rot   = qutils::json2rquat(right_hand_rot[0]);
+  Eigen::Quaterniond l_point   = qutils::json2pquat(left_hand[0]);
+  Eigen::Quaterniond r_point   = qutils::json2pquat(right_hand[0]);
+  Eigen::Quaterniond l_rot     = qutils::json2rquat(left_hand_rot[0]);
+  Eigen::Quaterniond r_rot     = qutils::json2rquat(right_hand_rot[0]);
+  //Eigen::Quaterniond l_rot_kin = qutils::json2rquat(left_hand_kin[0]);
+  //Eigen::Quaterniond r_rot_kin = qutils::json2rquat(right_hand_kin[0]);
 
   push_quaternions(l_point, l_rot, l);
   push_quaternions(r_point, r_rot, r);
@@ -170,6 +197,8 @@ void read_ground_truth_json(const std::string& filename,
     const Json::Value& rfinger = right_hand[i];
     const Json::Value& lfinger_rot = left_hand_rot[i];
     const Json::Value& rfinger_rot = right_hand_rot[i];
+    //const Json::Value& lfinger_kin = left_hand_rot_kin[i];
+    //const Json::Value& rfinger_kin = right_hand_rot_kin[i];
 
     //BONE 1
     Eigen::Quaterniond lf_point0 = qutils::json2pquat(lfinger[0]);
@@ -239,27 +268,36 @@ void read_ground_truth_json(const std::string& filename,
 
   left.push_back(l);
   right.push_back(r);
-}
 
-//TODO first parameter doesn't used, valorate to delete.
-void relative(bool init_finger, const Json::Value& p2, std::vector<float>& o){
-  int size = o.size();
-  if(init_finger){
-    o.push_back(p2[0].asFloat()-o[0]);
-    o.push_back(p2[1].asFloat()-o[1]);
-    o.push_back(p2[2].asFloat()-o[2]);
-  }else{
-    o.push_back(p2[0].asFloat()-o[size-3]);
-    o.push_back(p2[1].asFloat()-o[size-2]);
-    o.push_back(p2[2].asFloat()-o[size-1]);
+  l.clear();
+  r.clear();
+
+  //AXIS NEURON KINEMATIC
+  //std::vector<float> l, r;
+  //Always root at begining
+  for(int i=0; i<3; ++i){
+    l.push_back(left_hand_kin[0][i].asFloat());
+    r.push_back(right_hand_kin[0][i].asFloat());
   }
-}
 
-//TODO first parameter doesn't used, valorate to delete.
-void absolute(bool init_finger, const Json::Value& p2, std::vector<float>& o){
-  o.push_back(p2[0].asFloat());
-  o.push_back(p2[1].asFloat());
-  o.push_back(p2[2].asFloat());
+  for (int i=1; i<left_hand.size(); ++i){
+    const Json::Value& lfinger = left_hand_kin[i];
+    const Json::Value& rfinger = right_hand_kin[i];
+
+    absolute(true, lfinger[0], l);
+    absolute(true, rfinger[0], r);
+
+    absolute(false, lfinger[1], l);
+    absolute(false, rfinger[1], r);
+
+    absolute(false, lfinger[2], l);
+    absolute(false, rfinger[2], r);
+  }
+
+  left.push_back(l);
+  right.push_back(r);
+
+
 }
 
 void generate_ground_truth(const std::string& filename,
@@ -324,12 +362,14 @@ void writeHaplyFromPCL(const pcl::PointCloud<pcl::PointXYZRGB>::Ptr& cloud,
     default:
       plyOut.getElement("gt").addProperty<float>("relative", ground_truth[0]);
       plyOut.getElement("gt").addProperty<float>("absolute", ground_truth[1]);
+      plyOut.getElement("gt").addProperty<float>("axiskin",  ground_truth[3]);
       break;
   }
 
   //Always not relative.
   if(mode != GT_RELATIVE){
     std::vector<float> x, y, z, qw, qx, qy, qz;
+    std::vector<float> axiskin;
     for(int i=0; i<ground_truth[2].size(); i+=7){
       x.push_back(ground_truth[2][i]);
       y.push_back(ground_truth[2][i+1]);
@@ -342,7 +382,7 @@ void writeHaplyFromPCL(const pcl::PointCloud<pcl::PointXYZRGB>::Ptr& cloud,
     plyOut.addElement("joints", x.size());
     plyOut.getElement("joints").addProperty<float>("x", x);
     plyOut.getElement("joints").addProperty<float>("y", y);
-    plyOut.getElement("joints").addProperty<float>("z", z);
+    plyOut.getElement("joints").addProperty<float>("z", z); 
     plyOut.getElement("joints").addProperty<float>("qw", qw);
     plyOut.getElement("joints").addProperty<float>("qx", qx);
     plyOut.getElement("joints").addProperty<float>("qy", qy);
