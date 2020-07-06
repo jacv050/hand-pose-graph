@@ -16,6 +16,7 @@ import sys
 import glob
 
 import copy
+import utils.qutils as qutils
 
 import multiprocessing.dummy as mp
 
@@ -40,8 +41,12 @@ class UnrealHands(Dataset):
 
     tree_ = scipy.spatial.cKDTree(points_)
 
-    _, idxs_ = tree_.query(points_, k=k + 1, distance_upper_bound=radius) # Closest point will be the point itself, so k + 1
-
+    idxs_ = None
+    if radius is None:
+      _, idxs_ = tree_.query(points_, k=k + 1) # Closest point will be the point itself, so k + 1
+    else:
+      _, idxs_ = tree_.query(points_, k=k + 1, distance_upper_bound=radius) # Closest point will be the point itself, so k + 1
+ 
     idxs_ = idxs_[:, 1:] # Remove closest point, which is the point itself
 
     if len(cloud['vertex']['x']) > self.aux_max:
@@ -59,7 +64,40 @@ class UnrealHands(Dataset):
                                         cloud['vertex']['z'])), dtype=torch.float).transpose(0, 1)
 
     #graph_y_ = torch.tensor(cloud['vertex']['label'], dtype=torch.long)
-    graph_y_ = torch.tensor(labels, dtype=torch.float)
+    graph_y_ = None
+    indexed = False
+    quaternion = True
+    if labels is None:
+      kin = np.vstack(cloud['gt']['axiskin'])
+      kinf = None
+      #print(kin)
+      l=[4, 7, 10, 13, 16, 19, 22, 25, 28, 31, 34, 37, 38, 39, 41, 42]
+      if indexed:
+        kinf = kin[l]
+      else:
+        kinf = kin
+
+      #Convert to quaternion from kinematics
+      q = None
+      #Quaternion from not indexed specific angles
+      if quaternion and not indexed:
+        q = np.zeros(int(kin.shape[0]/3*4), dtype=np.float64)
+        for i in range(int(kin.size/3)):
+          qaux = qutils.quaternion.as_float_array(qutils.euler2quaternion([kin[i*3], kin[i*3+1], kin[i*3+2]]))
+          q[i*4] = qaux[0]
+          q[i*4+1] = qaux[1]
+          q[i*4+2] = qaux[2]
+          q[i*4+3] = qaux[3]
+
+        kinf = q
+      #Quaternion from indexed specific angles TODO
+      else:
+        print('Disable indexed')
+
+      graph_y_ = torch.tensor(kinf, dtype=torch.float)
+    else:
+      graph_y_ = torch.tensor(labels, dtype=torch.float)
+
 
     #FIX SIZE
     diff = 1395 - len(cloud['vertex']['x'])
@@ -70,7 +108,7 @@ class UnrealHands(Dataset):
     data_ = Data(x = graph_x_, edge_index = graph_edge_index_, pos = graph_pos_, y = graph_y_)
     return data_
 
-  def __init__(self, root, k=3, radius, transform=None, pre_transform=None):
+  def __init__(self, root, k=3, radius=None, transform=None, pre_transform=None):
     self.cloud_folder = "cloud_sampled"
     self.aux_max = 0
     self.k = k
@@ -166,13 +204,17 @@ class UnrealHands(Dataset):
 
   def process_threaded(self, p):
     path_cloud = self.raw_paths_processed[p]
-    path_joints = (path_cloud[:len(path_cloud)-3] + "json").replace(self.cloud_folder, "joints")
-    #LOG.info("Processing cloud {0} out of {1}".format(p, len(self.raw_paths_processed)))
+    #TODO Parameterize
+    old_joints = False
+    labels = None
+    if old_joints:
+      path_joints = (path_cloud[:len(path_cloud)-3] + "json").replace(self.cloud_folder, "joints")
+      #LOG.info("Processing cloud {0} out of {1}".format(p, len(self.raw_paths_processed)))
 
-    #LOG.info(path_cloud)
-    #LOG.info(path_joints)
-    hands_ = self.read_joints_json2(path_joints)
-    labels = hands_["left_hand"]+hands_["right_hand"]
+      #LOG.info(path_cloud)
+      #LOG.info(path_joints)
+      hands_ = self.read_joints_json2(path_joints)
+      labels = hands_["left_hand"]+hands_["right_hand"]
     #print(labels)
 
     with open(self.raw_paths_processed[p], 'rb') as f:
