@@ -75,13 +75,13 @@ class GCN_test(torch.nn.Module):
     self.pool3 = nn.MaxPool2d((3,1),(1,1))
     self.pool2 = nn.MaxPool2d((2,1),(2,1))
 
-    self.fc1_1   = nn.Linear(1680, 1024)
+    self.fc1_1   = nn.Linear(2380, 1024)#1680
     torch.nn.init.xavier_uniform_(self.fc1_1.weight)
     #self.fc1_1.weight.data.uniform_(0.00001, 0.000001)
     #self.fc1_1.weight.data.fill_(0.0001)
     self.fc2_1   = nn.Linear(1024, 1024)
     torch.nn.init.xavier_uniform_(self.fc2_1.weight)
-    self.fc3_1   = nn.Linear(1024, 64)
+    self.fc3_1   = nn.Linear(1024, 64) #64 16
     torch.nn.init.xavier_uniform_(self.fc3_1.weight)
 
     #self.nll = NLinearLayer(1395, 96)

@@ -197,7 +197,7 @@ def train(args):
           f.write(str(loss_all/counter))
 
         # Evaluate on training set
-        """ s
+        # "" s
         if (epoch + 1) % 1 == 0:
 
             model_.eval()
@@ -208,7 +208,6 @@ def train(args):
             for batch in train_loader_:
               b = batch
               batch = batch.to(device_)
-              save_test = True
               pred_ = model_(batch)
               #print(pred_.size())
               #print(pred_)
@@ -221,20 +220,22 @@ def train(args):
               #l = aux.cpu()
               correct_ += np.array(l)
 
-              save_test = False
+              save_test = True
               if save_test :
                 save_test = False
-                gnt_cloud.save_ply_cloud(np.transpose(b.pos.cpu(), (0,1)), np.transpose( b.x.cpu(), (0,1)), 'output_clouds/output_cloud_{}.ply'.format(epoch+1))
+                #gnt_cloud.save_ply_cloud(np.transpose(b.pos.cpu(), (0,1)), np.transpose( b.x.cpu(), (0,1)), 'output_clouds/output_cloud_{}.ply'.format(epoch+1))
                 joints  = np.array(generate_listofpoints2(l))
                 print(joints.shape)
-                gnt_cloud.save_ply_cloud(joints, np.repeat([[255,255,255]], joints.shape[0], axis=0),'outputs_joints/output_joints_{}.ply'.format(epoch+1))
-                torch.save(model_.state_dict(), 'models/model_{}.pt'.format(str(epoch).zfill(3)))
-                with open('output_error/output_{}.json'.format(str(j+1).zfill(3)), 'w') as f:
+                #gnt_cloud.save_ply_cloud(joints, np.repeat([[255,255,255]], joints.shape[0], axis=0),'output_joints/output_joints_{}.ply'.format(epoch+1))
+                #torch.save(model_.state_dict(), 'models/model_{}.pt'.format(str(epoch).zfill(3)))
+                with open('output_error/output_{}.json'.format(str(epoch+1).zfill(3)), 'w') as f:
                   error = np.abs(np.array(ground_truth)-np.array(l))
                   output_error = {}
                   output_error["output"] = l
                   output_error["output_ground_truth"] = ground_truth
                   output_error["error"] = error.tolist()
+                  #geodesic distance
+                  output_error["geodesic_distance"] = [ np.power(np.sum(np.array(ground_truth[a:a+4])*np.array(l[a:a+4])),2) for a in range(0,64,4) ]
                   output_error["mean_error"] = error.mean()
                   euclidean_distance = [ np.sqrt(np.power(error[i:i+3],2).sum()) for i in range(0,error.shape[0],3)]
                   output_error["euclidean_distance"] = euclidean_distance
@@ -245,7 +246,7 @@ def train(args):
                 #  data.save()
             j = j+1
             #print(correct_/counter)
-        """
+        #"""
 
         #    correct_ = 0
 
