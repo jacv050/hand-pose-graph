@@ -1,0 +1,55 @@
+
+
+python test_ground_truth.py --pose_reference pose_reference_fix.json --scene_json scene_test.json --output_error output_error_final.json
+python test_pose_rebuild.py --pose_reference pose_reference_fix.json --pointcloud 000001_rsampled.ply --output_error output_error_final.json
+
+(YZX)
+XYZ -> XZY -> ZYX
+PRY -> YRP -> PYR
+
+XYZ -> XZY -> ZYX
+PRY -> PRY -> RYP
+
+XYZ -> PRY
+x=0
+y=-2.55
+z=-20
+[ 0.0038639, -0.0219131, -0.1736052, 0.9845639 ]
+
+x=0
+y=-20
+z=-2.55
+XZY -> YRP(zxy)
+[ -0.0038639, -0.1736052, -0.0219131, 0.9845639 ]
+
+
+
+
+XYZ -> PRY
+x=10
+y=-2.55
+z=-20
+[ 0.0896596, -0.006699, -0.1710347, 0.9811541 ]
+XZY -> YRP
+x=10
+y=-20
+z=-2.55
+[ 0.0819612, -0.1748544, -0.0369604, 0.9804806 ]
+XZY -> PRY
+x=10
+y=-20
+z=-2.55
+[ 0.0896596, -0.1710347, -0.006699, 0.9811541 ]
+
+x=-2.55
+y=-20
+z=10
+ZYX -> RYP
+[ -0.006699, -0.1710347, 0.0896596, 0.9811541 ]
+
+
+YZX -> ZYX
+PRY -> RPY
+
+XZY -> PRY
+(YZX)ZYX -> 
