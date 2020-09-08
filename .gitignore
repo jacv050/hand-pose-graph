@@ -1,6 +1,6 @@
 *.pt
 *.ply
-*.json
+#*.json
 *.pyc
 data/*/raw/*
 data*
