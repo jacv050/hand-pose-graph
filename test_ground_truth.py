@@ -166,6 +166,7 @@ if __name__ == "__main__":
     PARSER_.add_argument("--pose_reference", nargs="?", type=str, default=None, help="Json with pose reference")
     PARSER_.add_argument("--scene_json", nargs="?", type=str, default=None, help="Json scene")
     PARSER_.add_argument("--output_error", nargs="?", type=str, default=None, help="Joints angles prediction")
+    PARSER_.add_argument("--bones_names", nargs="?", type=str, default=None, help="Bones names")
 
     ARGS_ = PARSER_.parse_args()
 
@@ -181,7 +182,10 @@ if __name__ == "__main__":
     with open(ARGS_.scene_json) as f:
         skeleton = json.load(f)["frames"][60]["skeletons"][0]["bones"]
 
-    bones_names = {}
+    bones_names = None
+    with open(ARGS_.bones_names) as f:
+        bones_names = json.load(f)
+    """
     bones_names["left_hand"] = ["hand_l", 
                 ["index_01_l", "index_02_l", "index_03_l"], 
                 ["middle_01_l", "middle_02_l", "middle_03_l"],
@@ -194,6 +198,7 @@ if __name__ == "__main__":
                 ["pinky_01_r", "pinky_02_r", "pinky_03_r"],
                 ["ring_01_r", "ring_02_r", "ring_03_r"],
                 ["thumb_01_r", "thumb_02_r", "thumb_03_r"]]
+    """
     
     filtered = filter_joints(skeleton, bones_names["left_hand"])
     gt = kinematics_filtered_skeleton(filtered)
