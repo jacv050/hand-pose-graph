@@ -15,6 +15,27 @@ import matplotlib as mpl
 mpl.rcParams['savefig.dpi'] = 80
 mpl.rcParams['figure.dpi'] = 80
 
+def get_position(dict_json):
+    """ Return an array with UnrealEngine position with coordinate system fixed.
+
+    Args: 
+        dict_json: dictionary with UnrealEngine object information.
+    """
+    return np.array([dict_json["position"]["y"], -dict_json["position"]["z"], dict_json["position"]["x"]])/100
+
+def get_rotation(dict_json):
+    """ Return an array with UnrealEngine orientation with coordinate system fixed.
+
+    Args:
+        dict_json: dictionary with UnrealEngine object information. 
+    """
+    #UnrealEngine X=Roll, Y=Pitch, Z=Yaw
+    #return np.array([dict_json["rotation"]["p"], dict_json["rotation"]["y"], dict_json["rotation"]["r"]])
+    return np.array([dict_json["rotation"]["p"], dict_json["rotation"]["y"], dict_json["rotation"]["r"]])
+
+def get_kinematics(dict_json):
+    return np.array([dict_json["kinematics"]["p"],dict_json["kinematics"]["y"],dict_json["kinematics"]["r"]])
+
 def plot_pose(hands, cloud, title=""):
     #for hand in hands:
     #  for
@@ -73,6 +94,7 @@ def plot_pose(hands, cloud, title=""):
       ax.view_init(0, 0)
       plt.show()
 
+#Return a list of rot
 def new_pose(pose_reference, pose_prediction, hand):
     #print(len(pose_reference["right_hand"]))
     output_pose = []
@@ -88,12 +110,17 @@ def new_pose(pose_reference, pose_prediction, hand):
     
     #order_rot = ['X','Y','Z']
     #order_rot = ['Z','Y','X']
-    print(root[1])
-    root_rot     = qutils.euler2quaternion(np.radians(root[1])[order_axi], order_rot) #FROM UNREAL
-    pos = np.array(root[0])[order_axi]
-    root_pos     = qutils.quaternion.from_float_array([0, pos[0], pos[1], pos[2]]) #Test y-zx
+    root_rot = qutils.quaternion.from_float_array([1,0,0,0])
+    for b in root:
+      root_rot     = root_rot * qutils.euler2quaternion(np.radians(b[1])[order_axi], order_rot) #FROM UNREAL
 
-    root_rotated = root_pos
+    print("root rot")
+    print(root_rot)
+
+      #pos = np.array(b[0])[order_axi]
+      #root_pos     = qutils.quaternion.from_float_array([0, pos[0], pos[1], pos[2]]) #Test y-zx
+
+    #root_rotated = root_pos
 
     output_pose.append(root_rot)
     #TEST DELETE
@@ -109,7 +136,9 @@ def new_pose(pose_reference, pose_prediction, hand):
       #itjoint = itjoint + 1
       for joint in finger:
         phalange_rot     = qutils.euler2quaternion(np.radians(joint[1])[order_axi], order_rot)
+        #Only used to transform to bones space
         q = q * phalange_rot
+        print(q)
 
         pred = pose_prediction[itjoint*4:itjoint*4+4]
         w=pred[0]
@@ -275,8 +304,10 @@ def rebuild_pose_from_quaternion3(pose_reference, pose_prediction):
 
       #Root rotation
       order_axi = [0,1,2] #201 UE
-      root   = next(iterator)
+
+      r = next(iterator) #IGNORE FIRST LIST
       root_rot     = next(qiterator)
+      root   = np.array([r[len(r)-1][0],root_rot]) #POS 0,0,0
       pos = np.array(root[0])[order_axi]
 
       root_pos     = qutils.quaternion.from_float_array([0, pos[0], pos[1], pos[2]]) #Test y-zx
@@ -292,7 +323,7 @@ def rebuild_pose_from_quaternion3(pose_reference, pose_prediction):
         qfinger = iter(next(qiterator))
         output_finger = []
         q = root_rot
-        #q = qutils.quaternion.from_float_array([1,0,0,0]) #DELETE
+        #q = qutils.euler2quaternion(np.radians(r[len(r)-1][1]), ['Z','X','Y'])
         phalange_pos = None
         phalange_rotated = None
         ijoint = 0
@@ -312,6 +343,7 @@ def rebuild_pose_from_quaternion3(pose_reference, pose_prediction):
           #Quaternion ROTATION ORIGINAL angles are 'r' 'p' 'y' swaped into 'p' 'y' 'r'
           #UPDATE ROTATION FOR NEXT BONE 
           q = next(qfinger)
+          #q = qutils.euler2quaternion(np.radians(joint[1]), ['Z','X','Y'])
 
           output_finger.append(point_pos)
 
@@ -351,20 +383,85 @@ def world2bonespace(pose_reference, pose_prediction):
           qf = q.inverse() * qutils.from_float_array(pose_prediction[ijoint*4:ijoint*4+4]) * q
           ijoint = ijoint + 1
 
+def get_bone(bone_name, list_of_bones_json):
+    """ Return bone from a list of bones
 
+    Args:
+        bone_name: An string with the bone name.
+        list_of_bones_json: List of bones with their properties (position, orientation).
+    """
+    for bone in list_of_bones_json:
+        if (bone["name"] == bone_name):
+            return bone
+    print(type(bone_name))
+    print("ERROR: Bone " + bone_name + " not found...")
+
+def filter_joints_orientation(skeleton_json, list_of_bones):
+    """ Filter joints from an UnrealEngine skeleton json and a list of bones.
+    The list of bones must be a list of lists where the first element is the root.
+    Ex. list_of_bones = [root_hand, [joints_finger_1], [joints_finger_2], ...]
+
+    Args:
+        skeleton_json = dictionary with UnrealEngine skeleton information. 
+    """
+    output_list = []
+
+    iterator = iter(list_of_bones)
+
+    for chain in iterator:
+        out_finger_list = [] #List of phalanges
+        for bone_name in chain:
+            bone_json = get_bone(bone_name, skeleton_json)
+
+            bone = np.zeros((3,3))
+            bone[0][:] = get_position(bone_json)
+            bone[1][:] = get_rotation(bone_json)
+
+            #bone = quaternion.from_euler_angles([bone_json["rotation"]["r"], bone_json["rotation"]["p"], bone_json["rotation"]["y"]])
+            out_finger_list.append(bone)
+        output_list.append(out_finger_list)
+
+    return output_list
+
+def pose_reference(skeleton_json, lists_of_bones):
+    """ Generate a filtered list of two elements with the frame reference for each hand
+
+    Args:
+        skeleton: json file with skeleton information
+        list_of_bones: list of bones to extract pose from skeleton_json
+    """
+    list_of_hands = {}
+    for key, value in lists_of_bones.items():
+        filtered_joints = filter_joints_orientation(skeleton_json, value)
+        #list_of_hands.append(filtered_joints) #[pos, rot]
+        list_of_hands[key] = filtered_joints
+
+    return list_of_hands
 
 if __name__ == "__main__":
 
     PARSER_ = argparse.ArgumentParser(description="Parameters")
-    PARSER_.add_argument("--pose_reference", nargs="?", type=str, default=None, help="Json with pose reference")
+    #PARSER_.add_argument("--pose_reference", nargs="?", type=str, default=None, help="Json with pose reference")
+    PARSER_.add_argument("--scene_json", nargs="?", type=str, default=None, help="Json scene")
     PARSER_.add_argument("--output_error", nargs="?", type=str, default=None, help="Joints angles prediction")
     PARSER_.add_argument("--pointcloud", nargs="?", type=str, default=None, help="Route to pointcloud")
+    PARSER_.add_argument("--bones_names", nargs="?", type=str, default=None, help="Bones names")
 
     ARGS_ = PARSER_.parse_args()
 
-    pose_reference = None
-    with open(ARGS_.pose_reference) as f:
-      pose_reference = json.load(f)
+    bones_names = None
+    with open(ARGS_.bones_names) as f:
+        bones_names = json.load(f)
+
+    skeleton = None
+    with open(ARGS_.scene_json) as f:
+        #skeleton = json.load(f)["frames"][60]["skeletons"][0]["bones"]
+        skeleton = json.load(f)["skeletons"][0]["pose_reference"]
+
+    pose_ref = None
+    #with open(ARGS_.pose_reference) as f:
+    #  pose_reference = json.load(f)
+    pose_ref = pose_reference(skeleton, bones_names)
 
     output_error = None
     with open(ARGS_.output_error) as f:
@@ -379,8 +476,8 @@ if __name__ == "__main__":
       #  cloud['vertex']['z']))
 
 
-    #pose = rebuild_pose_from_quaternion(pose_reference, output_error['output'])
-    pose = rebuild_pose_from_quaternion3(pose_reference, output_error['output_ground_truth'])
+    #pose = rebuild_pose_from_quaternion(pose_ref, output_error['output'])
+    pose = rebuild_pose_from_quaternion3(pose_ref, output_error['output_ground_truth'])
 
 
     print(len(pose))

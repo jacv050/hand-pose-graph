@@ -163,7 +163,7 @@ def skeleton2quaternion(ground_truth):
 if __name__ == "__main__":
 
     PARSER_ = argparse.ArgumentParser(description="Parameters")
-    PARSER_.add_argument("--pose_reference", nargs="?", type=str, default=None, help="Json with pose reference")
+    #PARSER_.add_argument("--pose_reference", nargs="?", type=str, default=None, help="Json with pose reference")
     PARSER_.add_argument("--scene_json", nargs="?", type=str, default=None, help="Json scene")
     PARSER_.add_argument("--output_error", nargs="?", type=str, default=None, help="Joints angles prediction")
     PARSER_.add_argument("--bones_names", nargs="?", type=str, default=None, help="Bones names")
