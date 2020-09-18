@@ -1,7 +1,32 @@
+90.0000017
+0.209379
+-89.9999948
+pelvis = [0.499085605, -0.500912786, 0.499085575, -0.500912726]
+pelvis = [-0.499085605, 0.500912786, -0.499085575, 0.500912726]  ->  [0.4990856 , -0.4990855, -0.5009127, 0.5009128] (SS)
+spine_01_l = [-0.998051941, 1.23072406e-08, -6.56467603e-10, 0.0623886622]
+spine_02_l = [-0.992478371, -1.38600811e-08, 6.29248902e-08, -0.122419901]
+spine_03_l = [-0.999705851, -4.48156534e-09, 3.44562989e-10, -0.0242524501]
+clavicle_l = [-0.639661074, 0.729415596, -0.208918139, -0.123043999]
+upperarm_l = [-0.969887435, -0.0893220231, -0.0149326092, 0.226090610]
+lowerarm_l = [-0.997538507, 0.0103610093, 0.0692880899, -0.00295915781]
+hand_l     = [-0.770886242, 0.117381930, 0.620311558, 0.0846724436]
+index_01_l = [-0.933686316, -0.227115571, -0.276751786, 0.00753998756]
 
+thig_r = [0.00858470239, -0.0737002194, 0.0621347763, 0.995305896]
+
+[ x: -90.0000017, y: -0.2093779, z: -89.9999948 ]
+
+quaternion(-0.0882330620718773, -0.184645688520718, -0.561778405410263, 0.801577145184937)
+
+Los autores han realizado un analísis y recopelización los artículos relacionados con sistemas de vigilancia basados en visión prestándoles atención tanto a los algoritmos utilizados como a la arquitectura software. 
+
+Los artículos citados se relacionan con los puntos presentados por los autores, en desafíos como detección, monitorización y análisis del comportamiento.
+
+Tanto el formato como los puntos tratados presentan una presentación correcta.
 
 python test_ground_truth.py --pose_reference pose_reference_fix.json --scene_json scene_test.json --output_error output_error_final.json
 python test_pose_rebuild.py --pose_reference pose_reference_fix.json --pointcloud 000001_rsampled.ply --output_error output_error_final.json
+python test_pose_rebuild.py --scene_json scene_test.json --output_error output_error_final.json --pointcloud 000001_rsampled.ply --bones_names bones_names_complete.json
 
 (YZX)
 XYZ -> XZY -> ZYX
@@ -53,3 +78,16 @@ PRY -> RPY
 
 XZY -> PRY
 (YZX)ZYX -> 
+
+
+
+UnrealEngine left-handed Z-Up
+
+Python right-handed Z-Up
+
+		UnrealEngine Python
+Up			Z			Z
+Forward		X			X
+Right		Y			-Y
+
+From unreal to python (w, -Y, X, Z).conj() or (W, X, -Y, Z).conj()
