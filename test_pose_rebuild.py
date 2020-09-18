@@ -310,6 +310,7 @@ def rebuild_pose_from_quaternion3(pose_reference, pose_prediction):
 
       #Root rotation
       order_axi = [0,1,2] #201 UE
+      order_rot = ['Z','Y','X']
       order_axi = [2,0,1]
 
       r = next(iterator) #IGNORE FIRST LIST
@@ -327,14 +328,15 @@ def rebuild_pose_from_quaternion3(pose_reference, pose_prediction):
       ifinger = 0
       itjoint = 1
       br = np.array([-1,-1,1])
-      br2 = np.array([1,1,-1,1])
+      br2 = np.array([1,1,1,1])
       for finger in iterator:
         qfinger = iter(next(qiterator))
         output_finger = []
         q = root_rot
-        q = qutils.euler2quaternion(np.radians(r[len(r)-1][1]*br)[[2,0,1]], ['Z','Y','X'])
+        q = qutils.euler2quaternion(np.radians(r[len(r)-1][1]*br)[order_axi], order_rot)
         q = qutils.quaternion.from_float_array(qutils.quaternion.as_float_array(q)[[0,1,2,3]]*br2)
         q = q.conj()
+        q = qutils.quaternion.from_float_array([1,0,0,0]) 
         phalange_pos = None
         phalange_rotated = None
         ijoint = 0
@@ -356,9 +358,10 @@ def rebuild_pose_from_quaternion3(pose_reference, pose_prediction):
           #UPDATE ROTATION FOR NEXT BONE 
           q = next(qfinger)
           #print(joint[1])
-          q = qutils.euler2quaternion(np.radians(joint[1]*br)[[2,0,1]], ['Z','Y','X'])
+          q = qutils.euler2quaternion(np.radians(joint[1]*br)[order_axi], order_rot)
           q = qutils.quaternion.from_float_array(qutils.quaternion.as_float_array(q)[[0,1,2,3]]*br2)
           q = q.conj()
+          q = qutils.quaternion.from_float_array([1,0,0,0]) 
           #print(-q)
           print("TEST")
           print(phalange_pos)
