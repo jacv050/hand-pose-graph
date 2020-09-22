@@ -19,7 +19,7 @@ def get_position(dict_json):
     Args: 
         dict_json: dictionary with UnrealEngine object information.
     """
-    return np.array([dict_json["position"]["y"], -dict_json["position"]["z"], dict_json["position"]["x"]])/100
+    return np.array([dict_json["position"]["y"], dict_json["position"]["z"], dict_json["position"]["x"]])/100
 
 def get_rotation(dict_json):
     """ Return an array with UnrealEngine orientation with coordinate system fixed.
@@ -59,38 +59,39 @@ def filter_joints(skeleton_json, list_of_bones):
 
     iterator = iter(list_of_bones)
 
-    for root_hand in iterator:
-        root_hand_json = get_bone(root_hand, skeleton_json)
+    #for root_hand in iterator:
+        #root_hand_json = get_bone(root_hand, skeleton_json) #***
         #position x y z#roll, pitch, yaw
         #root = np.array([None,None])
-        root = np.zeros((3,3))
-        root[0][:] = get_position(root_hand_json)
-        root[1][:] = get_rotation(root_hand_json)
-        root[2][:] = get_kinematics(root_hand_json)
-        output_list.append(root) # insertar en la lista tupla
-        for in_finger_list in iterator:
-            iterator_finger = iter(in_finger_list)#iterator for finger
-            root_finger_name = next(iterator_finger)
-            root_finger_bone_json = get_bone(root_finger_name, skeleton_json)
-            
-            root_finger = np.zeros((3,3))
-            root_finger[0][:] = get_position(root_finger_bone_json)
-            root_finger[1][:] = get_rotation(root_finger_bone_json)
-            root_finger[2][:] = get_kinematics(root_finger_bone_json)
-            
-            out_finger_list = [] #List of phalanges
-            out_finger_list.append(root_finger)
-            for bone_name in iterator_finger:
-                bone_json = get_bone(bone_name, skeleton_json)
 
-                bone = np.zeros((3,3))
-                bone[0][:] = get_position(bone_json)
-                bone[1][:] = get_rotation(bone_json)
-                bone[2][:] = get_kinematics(bone_json)
+        #root = np.zeros((3,3)) #***
+        #root[0][:] = get_position(root_hand_json)
+        #root[1][:] = get_rotation(root_hand_json)
+        #root[2][:] = get_kinematics(root_hand_json)
+        #output_list.append(root) # insertar en la lista tupla
+    for in_finger_list in iterator:
+        iterator_finger = iter(in_finger_list)#iterator for finger
+        root_finger_name = next(iterator_finger)
+        root_finger_bone_json = get_bone(root_finger_name, skeleton_json)
+        
+        root_finger = np.zeros((3,3))
+        root_finger[0][:] = get_position(root_finger_bone_json)
+        root_finger[1][:] = get_rotation(root_finger_bone_json)
+        root_finger[2][:] = get_kinematics(root_finger_bone_json)
+        
+        out_finger_list = [] #List of phalanges
+        out_finger_list.append(root_finger)
+        for bone_name in iterator_finger:
+            bone_json = get_bone(bone_name, skeleton_json)
 
-                #bone = quaternion.from_euler_angles([bone_json["rotation"]["r"], bone_json["rotation"]["p"], bone_json["rotation"]["y"]])
-                out_finger_list.append(bone)
-            output_list.append(out_finger_list)
+            bone = np.zeros((3,3))
+            bone[0][:] = get_position(bone_json)
+            bone[1][:] = get_rotation(bone_json)
+            bone[2][:] = get_kinematics(bone_json)
+
+            #bone = quaternion.from_euler_angles([bone_json["rotation"]["r"], bone_json["rotation"]["p"], bone_json["rotation"]["y"]])
+            out_finger_list.append(bone)
+        output_list.append(out_finger_list)
 
     return output_list
 
@@ -106,26 +107,26 @@ def kinematics_filtered_skeleton(processed_bones):
     iterator = iter(processed_bones)
 
     #Get root position
-    for root_hand in iterator:
-        output_list.append(root_hand[2])
+    for finger_list in iterator:
+        #output_list.append(root_hand[2])
         #Get root position of finger
-        for in_finger_list in iterator:
-            out_finger_list = []
-            #Get the rest of position
-            for bone in in_finger_list:
-                out_finger_list.append(bone[2])
+        out_finger_list = []
+        for bone in finger_list:
+            out_finger_list.append(bone[2])
+            print(bone[2])
+        print("")
 
-            output_list.append(out_finger_list)
+        output_list.append(out_finger_list)
 
     return output_list
 
 def skeleton2quaternion(ground_truth):
     iterator = iter(ground_truth)
 
-    root = next(iterator)
+    #root = next(iterator)
     #[Y,Z,X]
-    #order_axi = [2,0,1] #XYZ
-    order_axi = [1,0,2] #ZYX
+    order_axi = [2,0,1] #XYZ
+    #order_axi = [1,0,2] #ZYX
     #order_axi = [2,1,0] #XZY
     #order_axi = [0,1,2]  #PRY -> YRP -> PYR <<(YZX)>>
     #order_rot   = ['Y','Z','X'] #para [0,1,2]
@@ -143,15 +144,16 @@ def skeleton2quaternion(ground_truth):
     #order_axi = [1,0,2] #ZYX
     #order_rot   = ['X','Z','Y']
     #order_rot   = ['Y','X','Z']
-    order_rot   = ['Y','X','Z']
+    order_rot   = ['Z','X','Y']
     neg = np.array([1,1,1])
     output_hand = []
-    print(root)
-    q = qutils.euler2quaternion(np.radians(root)[order_axi]*neg, order_rot) #P Y R
-    output_hand = output_hand + qutils.quaternion.as_float_array(q).tolist()
+    #print(root)
+    #q = qutils.euler2quaternion(np.radians(root)[order_axi]*neg, order_rot) #P Y R
+    #output_hand = output_hand + qutils.quaternion.as_float_array(q).tolist()
     for finger in iterator:
+        print(finger)
         for joint in finger:
-            print(np.array(joint)[order_axi])
+            print(np.array(joint))
             q = qutils.euler2quaternion(np.radians(joint)[order_axi]*neg, order_rot) #P R Y
             #q = qutils.quaternion.as_float_array(q)
             #q = qutils.quaternion.from_float_array(q[[0,1,3,2]])
