@@ -206,4 +206,11 @@ class GCN_test(torch.nn.Module):
     #print(x1)
     #return x1
     #return torch.cat([x1,x2])
+
+    magnitude=torch.zeros(x1.shape[0], requires_grad=False, device=torch.cuda.current_device())
+    for i in range(int(magnitude.shape[0]/4)):
+      aux=torch.pow(x1[i*4:i*4+4],2)
+      magnitude[i*4:i*4+4]=torch.sqrt(torch.sum(aux))
+    x1=torch.div(x1,magnitude)
+
     return x1

@@ -76,14 +76,14 @@ class UnrealHands(Dataset):
         kinf = kin[l]
       else:
         kinf = kin
-
       #Convert to quaternion from kinematics
       q = None
       #Quaternion from not indexed specific angles
       if quaternion and not indexed:
-        q = np.zeros(int(kin.shape[0]/3*4), dtype=np.float64)
+        q = np.zeros(int(kin.shape[0]/3*4), dtype=np.float64) #bones angles divided 3 * 4 -> 64
         for i in range(int(kin.size/3)):
-          qaux = qutils.quaternion.as_float_array(qutils.euler2quaternion([kin[i*3], kin[i*3+1], kin[i*3+2]]))
+          #Correct pyr -> rpy
+          qaux = qutils.quaternion.as_float_array(qutils.euler2quaternion(np.radians([kin[i*3+2], kin[i*3], kin[i*3+1]]), ['Y', 'X', 'Z']))
           q[i*4] = qaux[0]
           q[i*4+1] = qaux[1]
           q[i*4+2] = qaux[2]
@@ -205,17 +205,12 @@ class UnrealHands(Dataset):
   def process_threaded(self, p):
     path_cloud = self.raw_paths_processed[p]
     #TODO Parameterize
-    old_joints = False
+    old_joints = False #OLD_JOINTS
     labels = None
-    if old_joints:
+    if old_joints: #DEFAULT FALSE
       path_joints = (path_cloud[:len(path_cloud)-3] + "json").replace(self.cloud_folder, "joints")
-      #LOG.info("Processing cloud {0} out of {1}".format(p, len(self.raw_paths_processed)))
-
-      #LOG.info(path_cloud)
-      #LOG.info(path_joints)
       hands_ = self.read_joints_json2(path_joints)
       labels = hands_["left_hand"]+hands_["right_hand"]
-    #print(labels)
 
     with open(self.raw_paths_processed[p], 'rb') as f:
       print(self.raw_paths_processed[p])
