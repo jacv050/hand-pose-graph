@@ -59,16 +59,6 @@ def filter_joints(skeleton_json, list_of_bones):
 
     iterator = iter(list_of_bones)
 
-    #for root_hand in iterator:
-        #root_hand_json = get_bone(root_hand, skeleton_json) #***
-        #position x y z#roll, pitch, yaw
-        #root = np.array([None,None])
-
-        #root = np.zeros((3,3)) #***
-        #root[0][:] = get_position(root_hand_json)
-        #root[1][:] = get_rotation(root_hand_json)
-        #root[2][:] = get_kinematics(root_hand_json)
-        #output_list.append(root) # insertar en la lista tupla
     for in_finger_list in iterator:
         iterator_finger = iter(in_finger_list)#iterator for finger
         root_finger_name = next(iterator_finger)
@@ -126,37 +116,15 @@ def skeleton2quaternion(ground_truth):
     #root = next(iterator)
     #[Y,Z,X]
     order_axi = [2,0,1] #XYZ
-    #order_axi = [1,0,2] #ZYX
-    #order_axi = [2,1,0] #XZY
-    #order_axi = [0,1,2]  #PRY -> YRP -> PYR <<(YZX)>>
-    #order_rot   = ['Y','Z','X'] #para [0,1,2]
-
-    #order_axi = [0,2,1]
-    #order_axi = [2,1,0]
-    #order_axi = [2,0,1]
-    #order_axi = [1,2,0]
-
-
-    #XYZ (PRY) (Axis Neuron)
-    #xzy (YRP) (Unreal Engine)
-    #ZYX (PYR) (Matplot)
-
-    #order_axi = [1,0,2] #ZYX
-    #order_rot   = ['X','Z','Y']
-    #order_rot   = ['Y','X','Z']
-    order_rot   = ['Z','X','Y']
+    order_rot   = ['Y','X','Z']
     neg = np.array([1,1,1])
     output_hand = []
-    #print(root)
-    #q = qutils.euler2quaternion(np.radians(root)[order_axi]*neg, order_rot) #P Y R
-    #output_hand = output_hand + qutils.quaternion.as_float_array(q).tolist()
+
     for finger in iterator:
         print(finger)
         for joint in finger:
             print(np.array(joint))
             q = qutils.euler2quaternion(np.radians(joint)[order_axi]*neg, order_rot) #P R Y
-            #q = qutils.quaternion.as_float_array(q)
-            #q = qutils.quaternion.from_float_array(q[[0,1,3,2]])
             output_hand = output_hand + qutils.quaternion.as_float_array(q).tolist()
 
 
@@ -202,7 +170,7 @@ if __name__ == "__main__":
                 ["thumb_01_r", "thumb_02_r", "thumb_03_r"]]
     """
     
-    filtered = filter_joints(skeleton, bones_names["left_hand"])
+    filtered = filter_joints(skeleton, bones_names["right_hand"])
     gt = kinematics_filtered_skeleton(filtered)
     gt = skeleton2quaternion(gt)
 
