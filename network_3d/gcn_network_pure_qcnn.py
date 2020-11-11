@@ -9,10 +9,8 @@ import random
 import math
 import sys
 sys.path.insert(1, 'network_3d/qcnn')
-sys.path.insert(1, 'network_3d/oqnn')
 #from application.app.qcnn.Qconv import QConv1d, QConv2d
 from Qconv import QConv1d, QConv2d
-from core_qnn.quaternion_layers import QuaternionLinear, QuaternionTransposeConv, QuaternionConv
 
 class GCN_test(torch.nn.Module):
 
@@ -28,7 +26,7 @@ class GCN_test(torch.nn.Module):
     #self.conv1.weight.data.fill_(0.0001)
     self.relu1 = nn.LeakyReLU(0.2, inplace=True)
     #self.top_pooling1 = TopKPooling(16, ratio=0.8)
-    self.conv2 = GCNConv(32, 32)
+    self.conv2 = GCNConv(32, 30)
     torch.nn.init.xavier_uniform_(self.conv2.weight)
     #self.conv2.weight.data.uniform_(0.00001, 0.01)
     #self.conv2.weight.data.fill_(0.0001)
@@ -37,15 +35,9 @@ class GCN_test(torch.nn.Module):
     #13056 5584 704 14288 22320 44640 89280 11160
     #22320
     #4185
-    #self.qconv2d1 = QConv2d(30, 64)
-    #self.qconv2d2 = QConv2d(64*3, 64)
-    #self.qconv2d3 = QConv2d(64*3, 64)
-    self.qconv2d1 = QuaternionConv(32, 64, kernel_size=3, stride=2, padding=1)
-    #torch.nn.init.xavier_uniform_(self.qconv2d1.weight)
-    self.qconv2d2 = QuaternionConv(64, 64, kernel_size=3, stride=2, padding=1)
-    #torch.nn.init.xavier_uniform_(self.qconv2d2.weight)
-    self.qconv2d3 = QuaternionConv(64, 64, kernel_size=3, stride=2, padding=1)
-    #torch.nn.init.xavier_uniform_(self.qconv2d3.weight)
+    self.qconv2d1 = QConv2d(30, 64)
+    self.qconv2d2 = QConv2d(64*3, 64)
+    self.qconv2d3 = QConv2d(64*3, 64)
 
     #Before
     #self.conv2d1 = nn.Conv2d(1, 3, (3, 2))
@@ -56,16 +48,12 @@ class GCN_test(torch.nn.Module):
     #self.pool2 = nn.MaxPool2d((2,1),(2,1))
     #self.fc1_1   = nn.Linear(2380, 1024)#1680
 
-    self.fc1_1   = nn.Linear(89280, 1024)#1680
-    #self.fc1_1   = QuaternionLinear(64, 4096)
+    self.fc1_1   = nn.Linear(267840, 1024)#1680
     torch.nn.init.xavier_uniform_(self.fc1_1.weight)
     self.fc2_1   = nn.Linear(1024, 1024)
-    #elf.fc2_1   = QuaternionLinear(4096, 4096)
     torch.nn.init.xavier_uniform_(self.fc2_1.weight)
     self.fc3_1   = nn.Linear(1024, 64) #64 16
-    #self.fc3_1   = QuaternionLinear(4096, 64)
     torch.nn.init.xavier_uniform_(self.fc3_1.weight)
-    self.output_act = nn.Sigmoid()
 
   def forward(self, data):
     x, edge_index, batch, pos = data.x, data.edge_index, data.batch, data.pos
@@ -91,10 +79,8 @@ class GCN_test(torch.nn.Module):
     #x1 = self.pool2(F.relu(self.conv2d2(x1)))
     #x1 = self.pool2(F.relu(self.conv2d3(x1)))
     #x1 = self.pool2(F.relu(self.conv2d4(x1)))
-    #x1 = x1.view(-1)
-    #print(x1.shape)
-    x1 = x1.squeeze(2).squeeze(2)
-    x1=x1.view(-1)
+    x1 = x1.view(-1)
+
     x1 = self.fc1_1(x1)
     #x1 = torch.tanh(x1)
     #x1 = F.dropout(x1, p=self.dropout, training=self.training)
@@ -106,14 +92,15 @@ class GCN_test(torch.nn.Module):
     #x1 = F.dropout(x1, p=self.dropout, training=self.training)
     #x1 = torch.tanh(x1)
 
-    #x1 = self.output_act(x1)
+    """ I
+    x2 = x2.view(-1)
+    x2 = self.fc1_2(x2)
+    x2 = torch.tanh(x2)
+    """
+    #print(x1)
+    #return x1
+    #return torch.cat([x1,x2])
 
-    #print(x1.shape)
-    #x1 = x1.mean(dim=0)
-
-    # """ I
-    #print(x1.shape)
-    x1 = x1.view(-1)
     magnitude=torch.zeros(x1.shape[0], requires_grad=False, device=torch.cuda.current_device())
     for i in range(int(magnitude.shape[0]/4)):
       aux=torch.pow(x1[i*4:i*4+4],2)
