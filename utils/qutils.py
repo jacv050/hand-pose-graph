@@ -21,10 +21,13 @@ def euler2quaternion(angles, order=['X', 'Y', 'Z']):
 	for c in order:
 		if c == 'X':
 			q *= x
+			#q = x * q
 		elif c == 'Y':
 			q *= y
+			#q = y * q
 		elif c == 'Z':
 			q *= z
+			#q = z * q
 
 	return q
     	
