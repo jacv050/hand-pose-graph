@@ -34,6 +34,7 @@ import network_3d.utils
 import dataset.unrealhands_otf
 import json
 import tqdm
+import pathlib
 
 import utils.gnt_cloud as gnt_cloud
 
@@ -103,7 +104,8 @@ def train(args):
         args : The arguments of the main program.
     """
 
-    dataset_ = dataset.unrealhands_otf.UnrealHands(root="../unrealhands2", k=args.k, radius=args.radius)
+    #dataset_ = dataset.unrealhands_otf.UnrealHands(root="../unrealhands2", k=args.k, radius=args.radius)
+    dataset_ = dataset.unrealhands_otf.UnrealHands(root="../icvl/training", k=args.k, radius=args.radius)
     LOG.info("Training dataset...")
     LOG.info(dataset_)
 
@@ -203,48 +205,43 @@ def train(args):
             model_.eval()
             correct_ = np.zeros(64)
 
-            j = 1
+            j = 0
 
+            pathlib.Path('output_error/'+str(epoch).zfill(5)).mkdir(parents=True, exist_ok=True)
             for batch in train_loader_:
               b = batch
               batch = batch.to(device_)
               pred_ = model_(batch)
-              #print(pred_.size())
-              #print(pred_)
-              #aux = pred_.sub(batch.y)
               aux = pred_
               aux2 = batch.y
-              #aux = batch.y
               l = [aux[i].item() for i in range(64)]
               ground_truth = [aux2[i].item() for i in range(64)]
-              #l = aux.cpu()
               correct_ += np.array(l)
 
               save_test = True
               if save_test :
-                save_test = False
                 #gnt_cloud.save_ply_cloud(np.transpose(b.pos.cpu(), (0,1)), np.transpose( b.x.cpu(), (0,1)), 'output_clouds/output_cloud_{}.ply'.format(epoch+1))
                 joints  = np.array(generate_listofpoints2(l))
-                print(joints.shape)
                 #gnt_cloud.save_ply_cloud(joints, np.repeat([[255,255,255]], joints.shape[0], axis=0),'output_joints/output_joints_{}.ply'.format(epoch+1))
                 #torch.save(model_.state_dict(), 'models/model_{}.pt'.format(str(epoch).zfill(3)))
-                with open('output_error/output_{}.json'.format(str(epoch+1).zfill(3)), 'w') as f:
+                with open('output_error/{}/output_{}.json'.format(str(epoch).zfill(5),str(j).zfill(5)), 'w') as f:
                   error = np.abs(np.array(ground_truth)-np.array(l))
                   output_error = {}
                   output_error["output"] = l
                   output_error["output_ground_truth"] = ground_truth
                   output_error["error"] = error.tolist()
                   #geodesic distance
-                  output_error["geodesic_distance"] = [ np.power(np.sum(np.array(ground_truth[a:a+4])*np.array(l[a:a+4])),2) for a in range(0,64,4) ]
+                  gd = np.ones(16)-np.array([ np.power(np.sum(np.array(ground_truth[q:q+4])*np.array(l[q:q+4])),2) for q in range(0,64,4)])
+                  output_error["geodesic_mean_error"] = gd.mean()
+                  output_error["geodesic_distance"] = gd.tolist()
                   output_error["mean_error"] = error.mean()
-                  euclidean_distance = [ np.sqrt(np.power(error[i:i+3],2).sum()) for i in range(0,error.shape[0],3)]
-                  output_error["euclidean_distance"] = euclidean_distance
-                  output_error["euclidean_distance_mean"] = np.array(euclidean_distance).mean()
+                  #euclidean_distance = [ np.sqrt(np.power(error[i:i+3],2).sum()) for i in range(0,error.shape[0],3)]
+                  #output_error["euclidean_distance"] = euclidean_distance
+                  #output_error["euclidean_distance_mean"] = np.array(euclidean_distance).mean()
                   json.dump(output_error, f)
-                break
                 #with open('output_{}.txt'.format(epoch).'w') as f:
                 #  data.save()
-            j = j+1
+              j = j+1
             #print(correct_/counter)
         #"""
 
@@ -306,7 +303,7 @@ if __name__ == "__main__":
     PARSER_.add_argument("--k", nargs="?", type=int, default=7, help="k Nearest Neighbors")
     PARSER_.add_argument("--radius", nargs="?", type=float, default=None, help="Search radius") #None default
     PARSER_.add_argument("--net", nargs="?", default="GCN_testv2", help="Network model")
-    PARSER_.add_argument("--loss", nargs="?", default="mean_absolute_error", help="Loss criterion")
+    PARSER_.add_argument("--loss", nargs="?", default="geodesic_distance_weighted", help="Loss criterion")
 
     ARGS_ = PARSER_.parse_args()
 
