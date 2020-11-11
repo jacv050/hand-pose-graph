@@ -25,6 +25,6 @@ class GeodesicDistanceWeightedLoss(nn.Module):
       #inner[i]=torch.pow(torch.sum(prod[i*4:i*4+4]),2)
     #inner[0] = inner[0]*1.5 #Weight
     #inner=torch.sum(inner)
-    return self.mse(inner, torch.ones(int(targets.shape[0]/4)))
+    return self.mae(inner, torch.ones(int(targets.shape[0]/4)))
     #return torch.sqrt(self.mse(inner, torch.ones(int(targets.shape[0]/4))) + self.eps)
     #return torch.abs(torch.sub(targets.shape[0]/4, inner))
