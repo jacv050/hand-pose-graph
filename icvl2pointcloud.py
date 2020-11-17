@@ -45,7 +45,7 @@ def csv_camera_info(line):
 
 def csv_annotation(line):
   splitted = line.split(',')
-  return int(splitted[0]), np.array([float(v) for v in splitted[1:]])
+  return int(splitted[0]), np.array([np.float32(v) for v in splitted[1:]])
 
 def save_ply_cloud(points, gt, filename):
   vertex_ = np.zeros(points.shape[0],
@@ -57,6 +57,7 @@ def save_ply_cloud(points, gt, filename):
   for i in range(points.shape[0]):
     vertex_[i] = (points[i][0], points[i][1], points[i][2])
 
+  #gtf4=gt.astype('f4')
   for i in range(joints_position.shape[0]):
     joints_position[i] = (gt[i*3], gt[i*3+1], gt[i*3+2])
     gto[i]=gt[i]
