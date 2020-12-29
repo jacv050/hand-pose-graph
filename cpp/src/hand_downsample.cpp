@@ -137,6 +137,7 @@ int main (int argc, char** argv){
 
       //std::cout << cin_dir << std::endl;
 
+    int max = 0;
     #pragma omp parallel for
     for(int i=0; i<v.size(); ++i){
     //for(auto it=v.begin(); it != v.end(); ++it){
@@ -147,7 +148,6 @@ int main (int argc, char** argv){
       std::cout << output_name << std::endl;
 
       std::cout << path << std::endl;
-      int max = 0;
       if(!boost::filesystem::exists(output_name)){
         //Read ply. happly
         pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZRGB>());
@@ -170,9 +170,8 @@ int main (int argc, char** argv){
           writeHaplyFromPCL(downsampled, gt, joints_position, output_name);
         }
       }
-      std::cout << max << std::endl;
-//    }
     }
+    std::cout << max << std::endl;
 
   return 0;
 }

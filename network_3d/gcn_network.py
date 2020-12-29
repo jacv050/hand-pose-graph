@@ -70,7 +70,7 @@ class GCN_test(torch.nn.Module):
     #self.fc1_1.weight.data.fill_(0.0001)
     self.fc2_1   = nn.Linear(2048, 2048)
     torch.nn.init.xavier_uniform_(self.fc2_1.weight)
-    self.fc3_1   = nn.Linear(2048, 96)
+    self.fc3_1   = nn.Linear(2048, 48)
     torch.nn.init.xavier_uniform_(self.fc3_1.weight)
 
     #self.nll = NLinearLayer(1395, 96)

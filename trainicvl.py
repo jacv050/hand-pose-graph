@@ -28,7 +28,6 @@ import png
 import numpy as np
 import torch
 from torch_geometric.data import DataLoader
-from dataset.datahand import DataHand
 
 import loss.factory
 import network_3d.utils
@@ -107,6 +106,7 @@ def train(args):
     dataset_ = dataset.icvl_otf.ICVL(root="../icvl/training/", k=args.k)
     LOG.info("Training dataset...")
     LOG.info(dataset_)
+
     train_loader_ = DataLoader(dataset_,
                                batch_size=args.batch_size,
                                shuffle=True,
@@ -131,85 +131,121 @@ def train(args):
     LOG.info(criterion_)
 
     ## Optimizer
-    #optimizer_ = torch.optim.Adam(model_.parameters(), lr=args.lr, weight_decay=1e-10) #5e-8
+    #optimizer_ = torch.optim.Adam(model_.parameters(), lr=args.lr, weight_decay=0, amsgrad=True) #5e-4)
     optimizer_ = torch.optim.SGD(model_.parameters(), lr=args.lr, momentum=0.9, nesterov=True)
-    #optimizer_ = torch.optim.Adam(model_.parameters(), lr=args.lr)
     LOG.info(optimizer_)
 
-    mepoch = 512
-    #checkpoint = torch.load('data/models/model_{}.pt'.format(str(mepoch-1).zfill(3)))
+    mepoch = 100
+    #checkpoint = torch.load('models/model_{}.pt'.format(str(mepoch-1).zfill(3)))
     #model_.load_state_dict(checkpoint)
 
-    loss_gen = False
-
     time_start_ = timer()
-    for epoch in range(26,27 ,1): #range(237, 700, 1):
-        mepoch = epoch+1
-        #icvl weights
-        checkpoint = torch.load('../icvl/training/models2020/model_{}.pt'.format(str(mepoch-1).zfill(3)))
-        #unrealhands weights
-        #checkpoint = torch.load('../models2020/model_{}.pt'.format(str(mepoch-1).zfill(3)))
-        model_.load_state_dict(checkpoint)
-
-        model_.eval()
-
+    for epoch in range(args.epochs):
+        model_.train()
         LOG.info("Training epoch {0} out of {1}".format(epoch+1, args.epochs))
+
+        """ s
+        if epoch > 99:
+          e = epoch/100
+          lr = np.power(10,-e) * args.lr
+          for param_group in optimizer_.param_groups:
+            param_group['lr'] = lr
+        """
 
         loss_all = 0
 
-        j = 1
+        i = 1
         counter = 0
+        losses_ = []
         for batch in tqdm.tqdm(train_loader_):
             #LOG.info("Training batch {0} out of {1}".format(i, len(train_loader_)))
-            counter += 1
 
-            rotate = batch.rotate
-            length = batch.length
-            offset = batch.offset
             batch = batch.to(device_)
+            optimizer_.zero_grad()
             output_ = model_(batch)
+            #loss_ = F.nll_loss(output_, batch.y)
+            losses_.append(criterion_(output_, batch.y))
+            #print(epoch, loss_.item())
+            counter += 1 #batch.y.size(0) #size is not [1,96]
+            #loss_all += batch.y.size(0) * loss_.item()
+            #LOG.info("Training loss {0}".format(loss_all))
 
-            if loss_gen:
-              loss_ = criterion_(output_, batch.y)
+            i = i+1
+
+            batch_size = 1
+            if (counter % batch_size) == 0:
+              loss_ = sum(losses_)
               loss_all += loss_.item()
-              #LOG.info("Training loss {0}".format(loss_all))
-            else:
+
+              #reg_loss = 0
+              #for param in model_.parameters():
+              #  reg_loss = torch.sum(torch.abs(param)) + reg_loss
+
+              #l1_lambda = 0 #0.00005
+              #loss_ = loss_ + l1_lambda * reg_loss
+
+              loss_.backward()
+              optimizer_.step()
+              losses_ = []
+
+            #Delete
+            #model_.eval()
+            #print(model_(batch))
+
+        LOG.info("Training loss {0}".format(loss_all/counter))
+        with open('losses_outputs/output_{}.txt'.format(str(epoch).zfill(3)), 'w') as f:
+          f.write(str(loss_all/counter))
+
+        # Evaluate on training set
+        if (epoch + 1) % 1 == 0:
+            torch.save(model_.state_dict(), '../icvl/training/models2020/model_{}.pt'.format(str(epoch).zfill(3)))
+        """ s
+            model_.eval()
+            correct_ = np.zeros(64)
+
+            j = 1
+
+            for batch in train_loader_:
+              b = batch
+              batch = batch.to(device_)
               save_test = True
-              #pred_ = model_(batch)
+              pred_ = model_(batch)
+              #print(pred_.size())
+              #print(pred_)
+              #aux = pred_.sub(batch.y)
+              aux = pred_
+              aux2 = batch.y
+              #aux = batch.y
+              l = [aux[i].item() for i in range(64)]
+              ground_truth = [aux2[i].item() for i in range(64)]
+              #l = aux.cpu()
+              correct_ += np.array(l)
 
-              #aux = pred_
-              aux = output_
-              aux2 = batch.y.view(-1)
-              l = (np.array([aux[i].item() for i in range(48)]) + offset.detach().numpy()) * length.detach().numpy()
-              ground_truth = (offset.detach().numpy() + np.array([aux2[i].item() for i in range(48)])) * length.detach().numpy()
-
+              save_test = False
               if save_test :
-                #gnt_cloud.save_ply_cloud(np.transpose(batch.pos.cpu(), (0,1)), np.transpose( batch.x.cpu()[:,:3]*255, (0,1)), 'outputs_clouds_validation/output_cloud_{}.ply'.format(j+1))
-                #joints  = np.array(generate_listofpoints2(l))
-                #gnt_cloud.save_ply_cloud(joints, np.repeat([[255,255,255]], joints.shape[0], axis=0),'outputs_joints_validation/output_joints_{}.ply'.format(j+1))
-                #output_error
-                with open('output_error_validation/output_{}.json'.format(str(j+1).zfill(3)), 'w') as f:
-                  #error = np.abs(np.array(ground_truth)-np.array(l))
-                  error = np.abs(l-ground_truth)
+                save_test = False
+                gnt_cloud.save_ply_cloud(np.transpose(b.pos.cpu(), (0,1)), np.transpose( b.x.cpu(), (0,1)), 'output_clouds/output_cloud_{}.ply'.format(epoch+1))
+                joints  = np.array(generate_listofpoints2(l))
+                print(joints.shape)
+                gnt_cloud.save_ply_cloud(joints, np.repeat([[255,255,255]], joints.shape[0], axis=0),'outputs_joints/output_joints_{}.ply'.format(epoch+1))
+                torch.save(model_.state_dict(), 'models/model_{}.pt'.format(str(epoch).zfill(3)))
+                with open('output_error/output_{}.json'.format(str(j+1).zfill(3)), 'w') as f:
+                  error = np.abs(np.array(ground_truth)-np.array(l))
                   output_error = {}
-                  output_error["output"] = l.tolist()
-                  output_error["output_ground_truth"] = ground_truth.tolist()
+                  output_error["output"] = l
+                  output_error["output_ground_truth"] = ground_truth
                   output_error["error"] = error.tolist()
                   output_error["mean_error"] = error.mean()
                   euclidean_distance = [ np.sqrt(np.power(error[i:i+3],2).sum()) for i in range(0,error.shape[0],3)]
                   output_error["euclidean_distance"] = euclidean_distance
                   output_error["euclidean_distance_mean"] = np.array(euclidean_distance).mean()
                   json.dump(output_error, f)
-
-              #"""
+                break
+                #with open('output_{}.txt'.format(epoch).'w') as f:
+                #  data.save()
             j = j+1
-        LOG.info("Training loss {0}".format(loss_all/counter))
-        if loss_gen:
-          with open('losses_outputs_validation/output_{}.txt'.format(str(mepoch).zfill(3)), 'w') as f:
-            f.write(str(loss_all/counter))
-
-
             #print(correct_/counter)
+        """
 
         #    correct_ = 0
 
@@ -218,6 +254,7 @@ def train(args):
     time_end_ = timer()
     LOG.info("Training took {0} seconds".format(time_end_ - time_start_))
 
+#Generate points from relative
 def generate_listofpoints(labels):
   output = []
   root_hand = np.array(labels[0:3])
@@ -238,6 +275,7 @@ def generate_listofpoints(labels):
 
   return output
 
+#Generate points from absolute
 def generate_listofpoints2(labels):
   output = []
   root_hand = np.array(labels[0:3])
@@ -263,7 +301,7 @@ if __name__ == "__main__":
     PARSER_ = argparse.ArgumentParser(description="Parameters")
     PARSER_.add_argument("--batch_size", nargs="?", type=int, default=1, help="Batch Size")
     PARSER_.add_argument("--epochs", nargs="?", type=int, default=512, help="Training Epochs")
-    PARSER_.add_argument("--lr", nargs="?", type=float, default=0.0001, help="Learning Rate")
+    PARSER_.add_argument("--lr", nargs="?", type=float, default=0.01, help="Learning Rate")
     PARSER_.add_argument("--k", nargs="?", type=int, default=7, help="k Nearest Neighbors")
     PARSER_.add_argument("--net", nargs="?", default="GCN_hand", help="Network model")
     PARSER_.add_argument("--loss", nargs="?", default="mean_absolute_error", help="Loss criterion")

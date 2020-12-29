@@ -4,6 +4,7 @@ import loss.root_mean_square_error
 import loss.mean_absolute_error
 import loss.geodesic_distance
 import loss.geodesic_distance_weighted
+import loss.mean_error_distance
 
 LOSSES = {
     "cross_entropy_2d" : loss.cross_entropy_2d.CrossEntropyLoss2d,
@@ -12,6 +13,7 @@ LOSSES = {
     "mean_absolute_error" :  loss.mean_absolute_error.MeanAbsoluteErrorLoss,
     "geodesic_distance" :  loss.geodesic_distance.GeodesicDistanceLoss,
     "geodesic_distance_weighted" :  loss.geodesic_distance_weighted.GeodesicDistanceWeightedLoss,
+    "mean_error_distance" : loss.mean_error_distance.MeanErrorDistanceLoss,
 }
 
 def get_loss(name):
