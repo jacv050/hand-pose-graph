@@ -3,7 +3,7 @@
 #*.json
 *.pyc
 data/*/raw/*
-data*
+data/*
 losses_outputs/
 losses_outputs_validation/
 output_error_validation/
