@@ -6,8 +6,8 @@ import json
 import math
 
 #frames = 2828
-frames = 1597
-#frames = 16007
+#frames = 1597
+frames = 16007
 
 euclidean_distance_index = range(40)
 mean_error_index = range(40)

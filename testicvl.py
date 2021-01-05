@@ -143,11 +143,10 @@ def train(args):
     loss_gen = False
 
     time_start_ = timer()
-    for epoch in range(26,27 ,1): #range(237, 700, 1):
+    for epoch in range(43,44 ,1): #range(237, 700, 1):
         mepoch = epoch+1
         #icvl weights
         checkpoint = torch.load('../icvl/training/models2020/model_{}.pt'.format(str(mepoch-1).zfill(3)))
-        #unrealhands weights
         #checkpoint = torch.load('../models2020/model_{}.pt'.format(str(mepoch-1).zfill(3)))
         model_.load_state_dict(checkpoint)
 
@@ -160,7 +159,6 @@ def train(args):
         j = 1
         counter = 0
         for batch in tqdm.tqdm(train_loader_):
-            #LOG.info("Training batch {0} out of {1}".format(i, len(train_loader_)))
             counter += 1
 
             rotate = batch.rotate
@@ -172,7 +170,6 @@ def train(args):
             if loss_gen:
               loss_ = criterion_(output_, batch.y)
               loss_all += loss_.item()
-              #LOG.info("Training loss {0}".format(loss_all))
             else:
               save_test = True
               #pred_ = model_(batch)
@@ -208,20 +205,12 @@ def train(args):
           with open('losses_outputs_validation/output_{}.txt'.format(str(mepoch).zfill(3)), 'w') as f:
             f.write(str(loss_all/counter))
 
-
-            #print(correct_/counter)
-
-        #    correct_ = 0
-
-        #    pi_ = 0
-
     time_end_ = timer()
     LOG.info("Training took {0} seconds".format(time_end_ - time_start_))
 
 def generate_listofpoints(labels):
   output = []
   root_hand = np.array(labels[0:3])
-  #print(root_hand)
   output.append(root_hand)
 
   i = 3
@@ -241,7 +230,6 @@ def generate_listofpoints(labels):
 def generate_listofpoints2(labels):
   output = []
   root_hand = np.array(labels[0:3])
-  #print(root_hand)
   output.append(root_hand)
 
   i = 3

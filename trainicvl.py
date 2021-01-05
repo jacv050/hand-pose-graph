@@ -116,7 +116,6 @@ def train(args):
 
     ## Select CUDA device
     device_ = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
-    #device_ = torch.device('cpu')
     LOG.info(device_)
     LOG.info(torch.cuda.get_device_name(0))
 
@@ -131,8 +130,9 @@ def train(args):
     LOG.info(criterion_)
 
     ## Optimizer
-    #optimizer_ = torch.optim.Adam(model_.parameters(), lr=args.lr, weight_decay=0, amsgrad=True) #5e-4)
-    optimizer_ = torch.optim.SGD(model_.parameters(), lr=args.lr, momentum=0.9, nesterov=True)
+    optimizer_ = torch.optim.Adam(model_.parameters(), lr=args.lr) #5e-8
+    #optimizer_ = torch.optim.Adam(model_.parameters(), lr=args.lr, weight_decay=1e-10) #5e-8
+    #optimizer_ = torch.optim.SGD(model_.parameters(), lr=args.lr, momentum=0.9, nesterov=True)
     LOG.info(optimizer_)
 
     mepoch = 100
@@ -144,31 +144,20 @@ def train(args):
         model_.train()
         LOG.info("Training epoch {0} out of {1}".format(epoch+1, args.epochs))
 
-        """ s
-        if epoch > 99:
-          e = epoch/100
-          lr = np.power(10,-e) * args.lr
-          for param_group in optimizer_.param_groups:
-            param_group['lr'] = lr
-        """
-
         loss_all = 0
 
         i = 1
         counter = 0
         losses_ = []
         for batch in tqdm.tqdm(train_loader_):
-            #LOG.info("Training batch {0} out of {1}".format(i, len(train_loader_)))
 
             batch = batch.to(device_)
             optimizer_.zero_grad()
             output_ = model_(batch)
-            #loss_ = F.nll_loss(output_, batch.y)
+
             losses_.append(criterion_(output_, batch.y))
-            #print(epoch, loss_.item())
+
             counter += 1 #batch.y.size(0) #size is not [1,96]
-            #loss_all += batch.y.size(0) * loss_.item()
-            #LOG.info("Training loss {0}".format(loss_all))
 
             i = i+1
 
@@ -177,20 +166,13 @@ def train(args):
               loss_ = sum(losses_)
               loss_all += loss_.item()
 
-              #reg_loss = 0
-              #for param in model_.parameters():
-              #  reg_loss = torch.sum(torch.abs(param)) + reg_loss
-
-              #l1_lambda = 0 #0.00005
-              #loss_ = loss_ + l1_lambda * reg_loss
-
               loss_.backward()
               optimizer_.step()
               losses_ = []
 
-            #Delete
-            #model_.eval()
-            #print(model_(batch))
+              printable = 500
+              if (counter % printable) == 0:
+                print(loss_.item())
 
         LOG.info("Training loss {0}".format(loss_all/counter))
         with open('losses_outputs/output_{}.txt'.format(str(epoch).zfill(3)), 'w') as f:
@@ -199,57 +181,6 @@ def train(args):
         # Evaluate on training set
         if (epoch + 1) % 1 == 0:
             torch.save(model_.state_dict(), '../icvl/training/models2020/model_{}.pt'.format(str(epoch).zfill(3)))
-        """ s
-            model_.eval()
-            correct_ = np.zeros(64)
-
-            j = 1
-
-            for batch in train_loader_:
-              b = batch
-              batch = batch.to(device_)
-              save_test = True
-              pred_ = model_(batch)
-              #print(pred_.size())
-              #print(pred_)
-              #aux = pred_.sub(batch.y)
-              aux = pred_
-              aux2 = batch.y
-              #aux = batch.y
-              l = [aux[i].item() for i in range(64)]
-              ground_truth = [aux2[i].item() for i in range(64)]
-              #l = aux.cpu()
-              correct_ += np.array(l)
-
-              save_test = False
-              if save_test :
-                save_test = False
-                gnt_cloud.save_ply_cloud(np.transpose(b.pos.cpu(), (0,1)), np.transpose( b.x.cpu(), (0,1)), 'output_clouds/output_cloud_{}.ply'.format(epoch+1))
-                joints  = np.array(generate_listofpoints2(l))
-                print(joints.shape)
-                gnt_cloud.save_ply_cloud(joints, np.repeat([[255,255,255]], joints.shape[0], axis=0),'outputs_joints/output_joints_{}.ply'.format(epoch+1))
-                torch.save(model_.state_dict(), 'models/model_{}.pt'.format(str(epoch).zfill(3)))
-                with open('output_error/output_{}.json'.format(str(j+1).zfill(3)), 'w') as f:
-                  error = np.abs(np.array(ground_truth)-np.array(l))
-                  output_error = {}
-                  output_error["output"] = l
-                  output_error["output_ground_truth"] = ground_truth
-                  output_error["error"] = error.tolist()
-                  output_error["mean_error"] = error.mean()
-                  euclidean_distance = [ np.sqrt(np.power(error[i:i+3],2).sum()) for i in range(0,error.shape[0],3)]
-                  output_error["euclidean_distance"] = euclidean_distance
-                  output_error["euclidean_distance_mean"] = np.array(euclidean_distance).mean()
-                  json.dump(output_error, f)
-                break
-                #with open('output_{}.txt'.format(epoch).'w') as f:
-                #  data.save()
-            j = j+1
-            #print(correct_/counter)
-        """
-
-        #    correct_ = 0
-
-        #    pi_ = 0
 
     time_end_ = timer()
     LOG.info("Training took {0} seconds".format(time_end_ - time_start_))
@@ -258,7 +189,6 @@ def train(args):
 def generate_listofpoints(labels):
   output = []
   root_hand = np.array(labels[0:3])
-  #print(root_hand)
   output.append(root_hand)
 
   i = 3
@@ -279,7 +209,6 @@ def generate_listofpoints(labels):
 def generate_listofpoints2(labels):
   output = []
   root_hand = np.array(labels[0:3])
-  #print(root_hand)
   output.append(root_hand)
 
   i = 3

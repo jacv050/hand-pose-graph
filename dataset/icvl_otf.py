@@ -25,8 +25,6 @@ import random
 
 import pcl
 import multiprocessing.dummy as mp
-#import open3d as o3d
-#import python-pcl as pcl
 from dataset.utils.plot_pointcloud import Plot
 
 LOG = logging.getLogger(__name__)
@@ -40,8 +38,6 @@ class ICVL(Dataset):
     points_ = np.transpose(np.vstack((cloud['vertex']['x'],
                                       cloud['vertex']['y'],
                                       cloud['vertex']['z'])), (1,0)) #N,3
-
-    #self.filter_outliers(points_, 0.01)
 
     #PCL cloud
     p = pcl.PointCloud()
@@ -80,7 +76,6 @@ class ICVL(Dataset):
     #compute Surface normals
     #normal_k = 30
     #cloud_normals = self.Surface_normals(p, normal_k).to_array()[:,:3]
-    #*flip normal
     #cloud_normals_rotated = np.matmul(cloud_normals, components)
 
     #Normalize pointcloud
@@ -92,6 +87,7 @@ class ICVL(Dataset):
     y_min_max = [np.min(points_rotated[:,1]), np.max(points_rotated[:,1])]
     z_min_max = [np.min(points_rotated[:,2]), np.max(points_rotated[:,2])]
 
+    #Define bounding box
     scale = 1.2
     bb3d_x_len = scale*(x_min_max[1]-x_min_max[0])
     bb3d_y_len = scale*(y_min_max[1]-y_min_max[0])
@@ -108,20 +104,16 @@ class ICVL(Dataset):
     #plot_.cloud(cloud_normalized, [x_min_max, y_min_max, z_min_max])
     #plot_.show()
 
-    #fake rgb
-    #rgb=np.zeros(csize)
+    #fake rgb TODO delete
     rgb=np.zeros(max_points)
     graph_x_ = torch.tensor(np.vstack((rgb,rgb,rgb,cloud_normalized[:,0],
                                       cloud_normalized[:,1],
                                       cloud_normalized[:,2])), dtype=torch.float).transpose(0, 1)
 
-    # Normalize the point cloud
-    # We normalize scale to fit points in a unit sphere
-
-    #clusters = kmeans2(points_, 2)
-
+    #Define graph connections
     tree_ = scipy.spatial.cKDTree(points_)
 
+    #If radius closest point by sphere. With none knn
     idxs_ = None
     if radius is None:
       _, idxs_ = tree_.query(points_, k=k + 1) # Closest point will be the point itself, so k + 1
@@ -132,45 +124,30 @@ class ICVL(Dataset):
 
     if len(cloud['vertex']['x']) > self.aux_max:
       self.aux_max = len(cloud['vertex']['x'])
-      #print("\n\n{}\n\n".format(self.aux_max))
 
     edge_origins_ = np.repeat(np.arange(len(points_)), k)
     edge_ends_ = np.reshape(idxs_, (-1))
-    #print(edge_ends_.shape)
 
     graph_edge_index_ = torch.tensor([edge_origins_, edge_ends_], dtype=torch.long)
 
-    """ I
-    gp_tmp = np.transpose(np.vstack((cloud['vertex']['x'],
-                                        cloud['vertex']['y'],
-                                        cloud['vertex']['z'])), (1,0))
-    gp_tmp = self.normalize_points(gp_tmp)
-    graph_pos_ = torch.tensor(gp_tmp, dtype=torch.float)
-    """
     graph_pos_ = torch.tensor(np.vstack((cloud['vertex']['x'],
                                         cloud['vertex']['y'],
                                         cloud['vertex']['z'])), dtype=torch.float).transpose(0, 1)
-    #print(graph_pos_.shape)
 
-    #graph_pos_ = self.normalize_points(graph_pos_)
-
-    #graph_y_ = torch.tensor(cloud['vertex']['label'], dtype=torch.long)
     fingers_index= [0, 1, 2, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24,
         25, 26, 27, 28, 29, 39, 40, 41, 42, 43, 44, 45, 46, 47,30, 31, 32, 33, 34,
         35, 36, 37, 38, 3, 4, 5, 6, 7, 8, 9, 10, 11]
-    #print(np.array(cloud['gt']['gt'][fingers_index]).reshape((16,3)).shape)
+
     labels = np.matmul(np.array(cloud['gt']['gt'][fingers_index]).reshape((16,3)), components)/max_bb3d_len - offset
     graph_y_ = torch.tensor(labels).view(-1)
 
-    #FIX SIZE
+    #FIX SIZE TODO delete
     diff = max_points - graph_x_.size(0)
     graph_x_ = torch.cat((graph_x_, torch.tensor(np.repeat([[0,0,0,0,0,0]], diff, axis=0), dtype=torch.float)), 0)
     graph_pos_ = torch.cat((graph_pos_, torch.zeros((diff,3))))
     #FIXED
 
     data_ = DataHand(x = graph_x_, edge_index = graph_edge_index_, edge_attr=None, y=graph_y_, pos = graph_pos_, normal=None, face=None, rotate=torch.tensor(components), length=max_bb3d_len, offset=offset)
-    #data_ = DataHand(x = graph_x_, edge_index = graph_edge_index_, edge_attr=None, y=graph_y_, pos = graph_pos_, normal=None, face=None, rotate=None, length=None, offset=None)
-    #data_ = Data(x = graph_x_, edge_index = graph_edge_index_, edge_attr=None, y=graph_y_, pos = graph_pos_)
     return data_
 
   def filter_outliers(self, cloud, stdev_threshold):
@@ -194,15 +171,11 @@ class ICVL(Dataset):
     tree = cloud.make_kdtree()
     ne.set_SearchMethod(tree)
     ne.set_RadiusSearch(normal_k)
-    # NG
-    #print('test - a')
-    #print(ne)
+
     cloud_normals = ne.compute()
-    #print('test - b')
-    return cloud_normals
+    return cloud_normals.to_array()[:,:3]
 
   def normalize_points(self, points):
-    #centroid = np.mean(points, axis=0)
     centroid = points.mean(axis=0)
     meanzero = points-centroid
     furthest_distance = np.max(np.sqrt(np.sum(abs(meanzero)**2,axis=-1)))
@@ -237,11 +210,9 @@ class ICVL(Dataset):
         output += [crpath + s for s in os.listdir(self.raw_dir + "/training/" + crpath)]
     """
     return [self.cloud_folder + "/" + s for s in os.listdir(self.raw_dir + "/" + self.cloud_folder)]
-    #return ["cloud/" + s for s in os.listdir(self.raw_dir + "/cloud/")]
 
   @property
   def processed_file_names(self):#CAMBIAR ESTO
-    #return os.listdir(self.processed_dir)
     return ["icvl_k" + str(self.k) + "_" + str(i) + ".pt" for i in range(len(self.raw_file_names))]
 
   def __len__(self):
@@ -261,12 +232,10 @@ class ICVL(Dataset):
           output = []
           iterator = iter(value)
           for root in iterator:
-            #output.append(root)
             output += root
 
             for finger_list in iterator:
               for bone in finger_list:
-                #output.append(bone)
                 output += bone
           output_dict[key] = output
 
@@ -282,7 +251,6 @@ class ICVL(Dataset):
           output = []
           iterator = iter(value)
           for root in iterator:
-            #output.append(root)
             output += root
             nproot = np.array(root)
 
@@ -291,7 +259,6 @@ class ICVL(Dataset):
               aux = np.array(next(iterator2)) + nproot
               output += aux.tolist()
               for bone in iterator2:
-                #output.append(bone)
                 aux = np.array(bone)+aux
                 output += aux.tolist()
           output_dict[key] = output
@@ -303,11 +270,8 @@ class ICVL(Dataset):
     for i in range(0,len(labels),3):
       output.append(labels[i:i+3])
 
-    #print(output)
-
   def process_threaded(self, p):
     path_cloud = self.raw_paths_processed[p]
-    #TODO Parameterize
     old_joints = False #OLD_JOINTS
     labels = None
     if old_joints: #DEFAULT FALSE
@@ -316,7 +280,6 @@ class ICVL(Dataset):
       labels = hands_["left_hand"]+hands_["right_hand"]
 
     with open(self.raw_paths_processed[p], 'rb') as f:
-      #print(self.raw_paths_processed[p])
       cloud_ = PlyData.read(f)
       if(len(cloud_['vertex']['x']) > 0):
       	graph_ = self._create_graph(cloud_, self.k, labels, self.radius)
@@ -327,7 +290,7 @@ class ICVL(Dataset):
     self.raw_paths_processed = self.raw_paths
     #TODO DELETE NEXT LINE
     self.process_threaded(0)
-    p = mp.Pool(1)
+    p = mp.Pool(12)
     #p.start()
     for i, _ in enumerate(p.imap_unordered(self.process_threaded, range(len(self.raw_paths_processed)), 1)):
       sys.stderr.write('\rdone {0:%}\n'.format(i/len(self.raw_paths_processed)))
@@ -346,7 +309,6 @@ class ICVL(Dataset):
       LOG.info(path_joints)
       hands_ = self.read_joints_json(path_joints)
       labels = hands_["left_hand"]+hands_["right_hand"]
-      #print(labels)
 
       with open(self.raw_paths[p], 'rb') as f:
         print(self.raw_paths[p])
@@ -356,5 +318,4 @@ class ICVL(Dataset):
 
   def get(self, idx):
     data_ = torch.load(os.path.join(self.processed_dir, "icvl_k{0}_{1}.pt".format(self.k, idx)))
-    #data_ = torch.load(os.path.join(self.processed_dir, "unrealhands_k{0}_{1}.pt".format(self.k, idx)))
     return data_

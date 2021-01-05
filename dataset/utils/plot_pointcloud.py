@@ -18,7 +18,7 @@ class Plot:
     x_min_max = minmax[0]
     y_min_max = minmax[1]
     z_min_max = minmax[2]
-    #min
+    #Calculate bounding box
     P1=[x_min_max[0], y_min_max[0], z_min_max[0]]
     P8=[x_min_max[1], y_min_max[1], z_min_max[1]]
     P2=[P8[0], P1[1], P1[2]]
