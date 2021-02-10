@@ -9,8 +9,9 @@ class MeanErrorDistanceLoss(nn.Module):
     self.mae = nn.L1Loss()
 
   def forward(self, inputs, targets):
-    N = int(inputs.shape[0]/3)
+    N = int(inputs.view(-1).shape[0]/3)
     return torch.mean(torch.norm(inputs.view(N, 3)-targets.view(N, 3), dim=1))
+    #return torch.sum(torch.norm(inputs.view(N, 3)-targets.view(N, 3), dim=1))
 
   def adjust_learning_rate(optimizer, epoch, learning_rate):
     lr = learning_rate * (0.1 ** (epoch // 30))

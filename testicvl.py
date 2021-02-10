@@ -33,6 +33,7 @@ from dataset.datahand import DataHand
 import loss.factory
 import network_3d.utils
 import dataset.icvl_otf
+#import dataset.icvl_normalized_otf
 import json
 import tqdm
 
@@ -104,7 +105,7 @@ def train(args):
         args : The arguments of the main program.
     """
 
-    dataset_ = dataset.icvl_otf.ICVL(root="../icvl/training/", k=args.k)
+    dataset_ = dataset.icvl_otf.ICVL(root="../icvl/testing/", k=args.k)
     LOG.info("Training dataset...")
     LOG.info(dataset_)
     train_loader_ = DataLoader(dataset_,
@@ -115,8 +116,8 @@ def train(args):
     print(next(iterator).y.shape)
 
     ## Select CUDA device
-    device_ = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
-    #device_ = torch.device('cpu')
+    #device_ = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+    device_ = torch.device('cpu')
     LOG.info(device_)
     LOG.info(torch.cuda.get_device_name(0))
 
@@ -143,10 +144,13 @@ def train(args):
     loss_gen = False
 
     time_start_ = timer()
-    for epoch in range(43,44 ,1): #range(237, 700, 1):
+    for epoch in range(0, 1,1): #range(237, 700, 1):
+        torch.cuda.empty_cache()
         mepoch = epoch+1
         #icvl weights
-        checkpoint = torch.load('../icvl/training/models2020/model_{}.pt'.format(str(mepoch-1).zfill(3)))
+        #checkpoint = torch.load('../icvl/training/models2020/model_{}.pt'.format(str(mepoch-1).zfill(3)))
+        #checkpoint = torch.load('../icvl/training/models2020/model_{}.pt'.format(str(mepoch-1).zfill(3)), map_location=device_)
+        checkpoint = torch.load('../icvl/training/models2020_gcn_hand/model_{}.pt'.format(str(61).zfill(3)), map_location=device_)
         #checkpoint = torch.load('../models2020/model_{}.pt'.format(str(mepoch-1).zfill(3)))
         model_.load_state_dict(checkpoint)
 
@@ -161,9 +165,9 @@ def train(args):
         for batch in tqdm.tqdm(train_loader_):
             counter += 1
 
-            rotate = batch.rotate
-            length = batch.length
-            offset = batch.offset
+            #rotate = batch.rotate
+            #length = batch.length
+            #offset = batch.offset
             batch = batch.to(device_)
             output_ = model_(batch)
 
@@ -177,8 +181,10 @@ def train(args):
               #aux = pred_
               aux = output_
               aux2 = batch.y.view(-1)
-              l = (np.array([aux[i].item() for i in range(48)]) + offset.detach().numpy()) * length.detach().numpy()
-              ground_truth = (offset.detach().numpy() + np.array([aux2[i].item() for i in range(48)])) * length.detach().numpy()
+              l = np.array([aux[i].item() for i in range(48)])
+              #l = (np.array([aux[i].item() for i in range(48)]) + offset.detach().numpy()) * length.detach().numpy()
+              ground_truth = np.array([aux2[i].item() for i in range(48)])
+              #ground_truth = (offset.detach().numpy() + np.array([aux2[i].item() for i in range(48)])) * length.detach().numpy()
 
               if save_test :
                 #gnt_cloud.save_ply_cloud(np.transpose(batch.pos.cpu(), (0,1)), np.transpose( batch.x.cpu()[:,:3]*255, (0,1)), 'outputs_clouds_validation/output_cloud_{}.ply'.format(j+1))
@@ -253,7 +259,7 @@ if __name__ == "__main__":
     PARSER_.add_argument("--epochs", nargs="?", type=int, default=512, help="Training Epochs")
     PARSER_.add_argument("--lr", nargs="?", type=float, default=0.0001, help="Learning Rate")
     PARSER_.add_argument("--k", nargs="?", type=int, default=7, help="k Nearest Neighbors")
-    PARSER_.add_argument("--net", nargs="?", default="GCN_hand", help="Network model")
+    PARSER_.add_argument("--net", nargs="?", default="GCN_hand3", help="Network model")
     PARSER_.add_argument("--loss", nargs="?", default="mean_absolute_error", help="Loss criterion")
 
     ARGS_ = PARSER_.parse_args()

@@ -9,7 +9,7 @@ class MeanAbsoluteErrorLoss(nn.Module):
     self.mae = nn.L1Loss()
 
   def forward(self, inputs, targets):
-    return self.mae(inputs, targets)
+    return self.mae(inputs, targets.view(-1))
 
   def adjust_learning_rate(optimizer, epoch, learning_rate):
     lr = learning_rate * (0.1 ** (epoch // 30))

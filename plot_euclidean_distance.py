@@ -6,8 +6,8 @@ import json
 import math
 
 #frames = 2828
-#frames = 1597
-frames = 16007
+frames = 1597
+#frames = 16007
 
 euclidean_distance_index = range(40)
 mean_error_index = range(40)
@@ -53,10 +53,39 @@ for distance in euclidean_distance:
 output.append(aux)
 """
 
-plt.plot(np.array(output)/len(euclidean_distance))
-plt.ylabel('% of frames')
-#plt.yticks([0.0,0.2,0.4,0.6,0.8,1.0])
 plt.xlabel('Euclidean distance threshold (mm). Mean: {:.2f}'.format(np.array(euclidean_distance).mean()*1000))
+plt.ylabel('% of frames')
+plt.yticks([0.0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0])
+
+fill_x = 80
+plt.xticks(range(0,fill_x,10))
+aux_max = max
+while(aux_max < fill_x):
+  output.append(aux)
+  aux_max += 1
+
+plt.margins(0,0)
+
+plt.axvline(10, color='gray', linestyle='--')
+plt.axvline(20, color='gray', linestyle='--')
+plt.axvline(30, color='gray', linestyle='--')
+plt.axvline(40, color='gray', linestyle='--')
+plt.axvline(50, color='gray', linestyle='--')
+plt.axvline(60, color='gray', linestyle='--')
+plt.axvline(70, color='gray', linestyle='--')
+plt.axhline(0.1, color='gray', linestyle='--')
+plt.axhline(0.2, color='gray', linestyle='--')
+plt.axhline(0.3, color='gray', linestyle='--')
+plt.axhline(0.4, color='gray', linestyle='--')
+plt.axhline(0.5, color='gray', linestyle='--')
+plt.axhline(0.6, color='gray', linestyle='--')
+plt.axhline(0.7, color='gray', linestyle='--')
+plt.axhline(0.8, color='gray', linestyle='--')
+plt.axhline(0.9, color='gray', linestyle='--')
+
+plt.plot(np.array(output)/len(euclidean_distance))
+#plt.yticks([0.0,0.2,0.4,0.6,0.8,1.0])
 #plt.xticks(range(0, max, 10))
-plt.xticks(range(0, 80, 10))
-plt.savefig('euclidean_distance.png')
+#plt.xticks(range(0, 80, 10))
+#plt.savefig('euclidean_distance.png')
+plt.savefig('euclidean_distance.png', bbox_inches='tight', transparent="True", pad_inches=0.0)

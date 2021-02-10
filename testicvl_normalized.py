@@ -28,6 +28,7 @@ import png
 import numpy as np
 import torch
 from torch_geometric.data import DataLoader
+from dataset.datahand import DataHand
 
 import loss.factory
 import network_3d.utils
@@ -104,11 +105,10 @@ def train(args):
         args : The arguments of the main program.
     """
 
-    #dataset_ = dataset.icvl_otf.ICVL(root="../icvl/training/", k=args.k) #radius = ?
-    dataset_ = dataset.icvl_normalized_otf.ICVL(root="../icvl/training/", k=args.k) #radius = ?
+    dataset_ = dataset.icvl_normalized_otf.ICVL(root="../icvl/testing/", k=args.k)
+    #dataset_ = dataset.icvl_otf.ICVL(root="../icvl/testing/", k=args.k)
     LOG.info("Training dataset...")
     LOG.info(dataset_)
-
     train_loader_ = DataLoader(dataset_,
                                batch_size=args.batch_size,
                                shuffle=True,
@@ -117,7 +117,8 @@ def train(args):
     print(next(iterator).y.shape)
 
     ## Select CUDA device
-    device_ = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+    #device_ = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+    device_ = torch.device('cpu')
     LOG.info(device_)
     LOG.info(torch.cuda.get_device_name(0))
 
@@ -132,75 +133,100 @@ def train(args):
     LOG.info(criterion_)
 
     ## Optimizer
-    #optimizer_ = torch.optim.Adam(model_.parameters(), lr=args.lr) #5e-8
     #optimizer_ = torch.optim.Adam(model_.parameters(), lr=args.lr, weight_decay=1e-10) #5e-8
     optimizer_ = torch.optim.SGD(model_.parameters(), lr=args.lr, momentum=0.9, nesterov=True)
+    #optimizer_ = torch.optim.Adam(model_.parameters(), lr=args.lr)
     LOG.info(optimizer_)
 
-    mepoch = 54
-    #checkpoint = torch.load('../icvl/training/models2020/model_{}.pt'.format(str(mepoch-1).zfill(3)))
+    mepoch = 512
+    #checkpoint = torch.load('data/models/model_{}.pt'.format(str(mepoch-1).zfill(3)))
     #model_.load_state_dict(checkpoint)
 
+    loss_gen = False
+
     time_start_ = timer()
-    for epoch in range(args.epochs):
-    #for epoch in range(mepoch, args.epochs, 1):
-        model_.train()
+    for epoch in range(40, 60,5): #range(237, 700, 1):
+        torch.cuda.empty_cache()
+        mepoch = epoch+1
+        #icvl weights
+        #checkpoint = torch.load('../icvl/training/models2020/model_{}.pt'.format(str(mepoch-1).zfill(3)))
+        checkpoint = torch.load('../icvl/training/models2020/model_{}.pt'.format(str(mepoch-1).zfill(3)), map_location=device_)
+        #checkpoint = torch.load('../icvl/training/models2020_gcn_hand/model_{}.pt'.format(str(61).zfill(3)), map_location=device_)
+        #checkpoint = torch.load('../models2020/model_{}.pt'.format(str(mepoch-1).zfill(3)))
+        model_.load_state_dict(checkpoint)
+
+        model_.eval()
+
         LOG.info("Training epoch {0} out of {1}".format(epoch+1, args.epochs))
 
         loss_all = 0
 
-        i = 1
+        j = 1
         counter = 0
-        batch_counter = 0
-        losses_ = []
+        cmean = 0
+        eucmean = 0
+        meanj = 0
         for batch in tqdm.tqdm(train_loader_):
+            counter += 1
 
+            rotate = batch.rotate
+            length = batch.length
+            offset = batch.offset
             batch = batch.to(device_)
-            optimizer_.zero_grad()
             output_ = model_(batch)
-            #print(output_)
+            #print(rotate.size())
 
-            losses_.append(criterion_(output_, batch.y))
-            #print(batch.y)
-
-            counter += 1 #batch.y.size(0) #size is not [1,96]
-
-            i = i+1
-
-            batch_size = 32
-            if (counter % batch_size) == 0:
-              batch_counter += 1
-              #loss_ = torch.div(sum(losses_), batch_size)
-              loss_ = sum(losses_)
+            if loss_gen:
+              loss_ = criterion_(output_, batch.y)
               loss_all += loss_.item()
+            else:
+              save_test = True
+              #pred_ = model_(batch)
 
-              #regularization
-              #reg_loss = 0
-              #for param in model_.parameters():
-              #  reg_loss = torch.sum(torch.abs(param)) + reg_loss
-              #l1_lambda = 0.00005
-              #loss_ = loss_ + l1_lambda * reg_loss
+              #aux = pred_
+              aux = output_
+              aux2 = batch.y.view(-1)
+              #l = np.array([aux[i].item() for i in range(48)])
+              l = np.matmul(length.detach().numpy()*(np.array([aux[i].item() for i in range(48)]).reshape((16,3)) + offset.detach().numpy()), rotate.transpose(0,1).numpy()).flatten() #* length.detach().numpy()
+              #ground_truth = np.array([aux2[i].item() for i in range(48)])
+              ground_truth = np.matmul(length.detach().numpy()*(np.array([aux2[i].item() for i in range(48)]).reshape((16,3)) + offset.detach().numpy()), rotate.transpose(0,1).numpy()).flatten() #* length.detach().numpy()
 
-              loss_.backward()
-              optimizer_.step()
-              losses_ = []
+              N = int(aux.size(0)/3)
+              meanj += torch.mean(torch.norm(aux.view(N,3)-aux2.view(N,3), dim=1))*length
 
-              printable = 480
-              if (counter % printable) == 0:
-                print(loss_all/counter)
+              if save_test :
+                #gnt_cloud.save_ply_cloud(np.transpose(batch.pos.cpu(), (0,1)), np.transpose( batch.x.cpu()[:,:3]*255, (0,1)), 'outputs_clouds_validation/output_cloud_{}.ply'.format(j+1))
+                #joints  = np.array(generate_listofpoints2(l))
+                #gnt_cloud.save_ply_cloud(joints, np.repeat([[255,255,255]], joints.shape[0], axis=0),'outputs_joints_validation/output_joints_{}.ply'.format(j+1))
+                #output_error
+                with open('output_error_validation/output_{}.json'.format(str(j+1).zfill(3)), 'w') as f:
+                  #error = np.abs(np.array(ground_truth)-np.array(l))
+                  error = np.abs(l-ground_truth)
+                  output_error = {}
+                  output_error["output"] = l.tolist()
+                  output_error["output_ground_truth"] = ground_truth.tolist()
+                  output_error["error"] = error.tolist()
+                  output_error["mean_error"] = error.mean()
+                  euclidean_distance = [ np.sqrt(np.power(error[i:i+3],2).sum()) for i in range(0,error.shape[0],3)]
+                  output_error["euclidean_distance"] = euclidean_distance
+                  output_error["euclidean_distance_mean"] = np.array(euclidean_distance).mean()
+                  json.dump(output_error, f)
+                  cmean += output_error["mean_error"]
+                  eucmean += output_error["euclidean_distance_mean"]
+              #"""
 
+            j = j+1
+        print("Mean error: {}".format(cmean/counter))
+        print("Mean error2: {}".format(meanj/counter))
+        print("Mean euclidean error: {}".format(eucmean/counter))
         LOG.info("Training loss {0}".format(loss_all/counter))
-        with open('losses_outputs/output_{}.txt'.format(str(epoch).zfill(3)), 'w') as f:
-          f.write(str(loss_all/counter))
-
-        # Evaluate on training set
-        if (epoch + 1) % 1 == 0:
-            torch.save(model_.state_dict(), '../icvl/training/models2020/model_{}.pt'.format(str(epoch).zfill(3)))
+        if loss_gen:
+          with open('losses_outputs_validation/output_{}.txt'.format(str(mepoch).zfill(3)), 'w') as f:
+            f.write(str(loss_all/counter))
 
     time_end_ = timer()
     LOG.info("Training took {0} seconds".format(time_end_ - time_start_))
 
-#Generate points from relative
 def generate_listofpoints(labels):
   output = []
   root_hand = np.array(labels[0:3])
@@ -220,7 +246,6 @@ def generate_listofpoints(labels):
 
   return output
 
-#Generate points from absolute
 def generate_listofpoints2(labels):
   output = []
   root_hand = np.array(labels[0:3])
@@ -245,7 +270,7 @@ if __name__ == "__main__":
     PARSER_ = argparse.ArgumentParser(description="Parameters")
     PARSER_.add_argument("--batch_size", nargs="?", type=int, default=1, help="Batch Size")
     PARSER_.add_argument("--epochs", nargs="?", type=int, default=512, help="Training Epochs")
-    PARSER_.add_argument("--lr", nargs="?", type=float, default=0.01, help="Learning Rate")
+    PARSER_.add_argument("--lr", nargs="?", type=float, default=0.0001, help="Learning Rate")
     PARSER_.add_argument("--k", nargs="?", type=int, default=7, help="k Nearest Neighbors")
     PARSER_.add_argument("--net", nargs="?", default="GCN_hand3", help="Network model")
     PARSER_.add_argument("--loss", nargs="?", default="mean_absolute_error", help="Loss criterion")

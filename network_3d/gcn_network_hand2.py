@@ -46,14 +46,13 @@ class GCN_test(torch.nn.Module):
     self.fc3_1   = nn.Linear(135424, 1024)
     #self.fc3_1   = nn.Linear(82944, 1024)
     torch.nn.init.xavier_uniform_(self.fc3_1.weight)
-    self.fc4_1   = nn.Linear(1024, 1024)
+    self.fc4_1   = nn.Linear(1024, 48) #1024
     torch.nn.init.xavier_uniform_(self.fc4_1.weight)
-    self.fc5_1   = nn.Linear(1024, 1024)
-    torch.nn.init.xavier_uniform_(self.fc5_1.weight)
-    self.embed = nn.Embedding(1024, 8)
-    self.fc6_1   = nn.Linear(8192, 48)
-    torch.nn.init.xavier_uniform_(self.fc6_1.weight)
-    #self.nll = NLinearLayer(1395, 96)
+    #self.fc5_1   = nn.Linear(1024, 1024)
+    #torch.nn.init.xavier_uniform_(self.fc5_1.weight)
+    #self.embed = nn.Embedding(1024, 8)
+    #self.fc6_1   = nn.Linear(1024, 48)
+    #torch.nn.init.xavier_uniform_(self.fc6_1.weight)
 
     #self.fc1_2   = nn.Linear(5584, 48)
     #torch.nn.init.xavier_uniform_(self.fc1_2.weight)
@@ -64,7 +63,7 @@ class GCN_test(torch.nn.Module):
   def forward(self, data):
     x, edge_index, batch, pos = data.x, data.edge_index, data.batch, data.pos
 
-    x[:,:3] = 0 #torch.div(x[:,:3], 255)
+    #x[:,:3] = 0 #torch.div(x[:,:3], 255)
     #x[:,3:] = torch.div(x[:,3:],0.6)
 
     x1 = self.conv1(x, edge_index)
@@ -88,22 +87,23 @@ class GCN_test(torch.nn.Module):
     x1 = x1.view(64,64).unsqueeze(0).unsqueeze(0)
 
     x1 = self.conv2d1(x1)
-    #x1 = self.relu2d1(x1)
+    x1 = self.relu2d1(x1)
     x1 = self.conv2d2(x1)
-    #x1 = self.relu2d2(x1)
+    x1 = self.relu2d2(x1)
     x1 = self.conv2d3(x1)
-    #x1 = self.relu2d3(x1)
+    x1 = self.relu2d3(x1)
     x1 = self.conv2d4(x1)
-    #x1 = self.relu2d4(x1)
+    x1 = self.relu2d4(x1)
 
     x1 = self.fc3_1(x1.view(-1))
     x1 = self.fc4_1(x1)
-    x1 = self.fc5_1(x1)
+    #x1 = self.fc5_1(x1)
 
     #x1 = torch.sign(x1)
     #x1 = torch.relu(x1)
     #x1 = self.fc5_1(x1)
-    x1 = self.embed(x1.long()).view(-1)
-    x1 = self.fc6_1(x1)
+    #x1 = self.embed(x1.long()).view(-1)
+    #x1 = self.fc6_1(x1.view(-1))
+    x1 = nn.Tanh()(x1)
 
     return x1

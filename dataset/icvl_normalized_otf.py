@@ -33,7 +33,7 @@ class ICVL(Dataset):
 
   def _create_graph(self, cloud, k, labels, radius):
     with_rgb = True
-    with_random = False
+    with_filter_outliers = True
     max_points=1395
     csize=cloud['vertex']['x'].shape[0]
 
@@ -41,17 +41,78 @@ class ICVL(Dataset):
                                       cloud['vertex']['y'],
                                       cloud['vertex']['z'])), (1,0)) #N,3
 
-    #Sampling random points Max points 1395
-    if with_random:
-      randomlist = None
-      if points_.shape[0] < max_points:
-        #TODO DELETE NEX LINE
-        randomlist = [ i for i in range(0, points_.shape[0])]
-        randomlist += random.sample(range(0, points_.shape[0]), max_points-points_.shape[0])
-      else:
-        randomlist = random.sample(range(0, points_.shape[0]), max_points)
+    if with_filter_outliers:
+      #PCL cloud
+      p = pcl.PointCloud()
+      p.from_array(np.array(points_, dtype=np.float32))
+      #Filter outlier
+      fil = p.make_statistical_outlier_filter()
+      fil.set_mean_k(50)
+      fil.set_std_dev_mul_thresh(1)
+      fil.set_negative(False)
+      p = fil.filter()
+      points_ = p.to_array()[:, :3]
 
-      points_ = points_[randomlist]
+    #Normalize sphere
+    points_normalized = self.normalize_points(points_)
+    #PCA
+    pca = PCA(n_components=3)
+    pca.fit(points_normalized)
+    components=pca.components_.transpose()
+    if components[1,0] < 0:
+	      components[:,0] = -components[:,0]
+    if components[2,2] < 0:
+      components[:,2] = -components[:,2]
+    components[:,1]=np.cross(components[:,2], components[:,0])
+
+    #Sampling random points Max points 1395
+    """ I
+    randomlist = None
+    if points_.shape[0] < max_points:
+      #TODO DELETE NEX LINE
+      randomlist = [ i for i in range(0, points_.shape[0])]
+      randomlist += random.sample(range(0, points_.shape[0]), max_points-points_.shape[0])
+    else:
+      randomlist = random.sample(range(0, points_.shape[0]), max_points)
+
+    points_ = points_[randomlist]
+    """
+
+    #Rotate points
+    points_rotated = np.matmul(points_, components)
+    #compute Surface normals
+    #normal_k = 30
+    #cloud_normals = self.Surface_normals(p, normal_k).to_array()[:,:3]
+    #cloud_normals_rotated = np.matmul(cloud_normals, components)
+
+    #Normalize pointcloud
+    #x_min_max2 = [np.min(points_[:,0]), np.max(points_[:,0])]
+    #y_min_max2 = [np.min(points_[:,1]), np.max(points_[:,1])]
+    #z_min_max2 = [np.min(points_[:,2]), np.max(points_[:,2])]
+
+    x_min_max = [np.min(points_rotated[:,0]), np.max(points_rotated[:,0])]
+    y_min_max = [np.min(points_rotated[:,1]), np.max(points_rotated[:,1])]
+    z_min_max = [np.min(points_rotated[:,2]), np.max(points_rotated[:,2])]
+
+    #Define bounding box
+    scale = 1.2
+    bb3d_x_len = scale*(x_min_max[1]-x_min_max[0])
+    bb3d_y_len = scale*(y_min_max[1]-y_min_max[0])
+    bb3d_z_len = scale*(z_min_max[1]-z_min_max[0])
+    max_bb3d_len = bb3d_x_len
+    #max_bb3d_len = np.max([bb3d_x_len, bb3d_y_len, bb3d_z_len])
+
+    offset = np.mean(points_rotated, axis=0)/max_bb3d_len
+    #offset = np.mean(points_rotated, axis=0)
+
+    cloud_normalized = points_rotated/max_bb3d_len - offset
+    #cloud_normalized = points_rotated - offset
+
+    #plot_ = Plot()
+    #plot_.cloud(points_, [x_min_max2, y_min_max2, z_min_max2])
+    #plot_.cloud(points_rotated, [x_min_max, y_min_max, z_min_max])
+    #plot_.cloud(cloud_normalized, [x_min_max, y_min_max, z_min_max])
+    #plot_.show()
 
     graph_x_ = None
     fake_point = None #if size < max fix with fake points
@@ -59,17 +120,18 @@ class ICVL(Dataset):
       #fake rgb TODO delete
       fake_point = [[0,0,0,0,0,0]]
       #rgb=np.zeros(max_points)
-      rgb=np.zeros(points_.shape[0])
-      graph_x_ = torch.tensor(np.vstack((rgb,rgb,rgb,points_[:,0],
-                                      points_[:,1],
-                                      points_[:,2])), dtype=torch.float).transpose(0, 1)
+      rgb=np.zeros(cloud_normalized.shape[0])
+      graph_x_ = torch.tensor(np.vstack((rgb,rgb,rgb,cloud_normalized[:,0],
+                                      cloud_normalized[:,1],
+                                      cloud_normalized[:,2])), dtype=torch.float).transpose(0, 1)
     else:
       fake_point = [[0,0,0]]
-      graph_x_ = torch.tensor(np.vstack((points_[:,0],
-                                      points_[:,1],
-                                      points_[:,2])), dtype=torch.float).transpose(0, 1)
+      graph_x_ = torch.tensor(np.vstack((cloud_normalized[:,0],
+                                      cloud_normalized[:,1],
+                                      cloud_normalized[:,2])), dtype=torch.float).transpose(0, 1)
 
     #Define graph connections
+    points_ = cloud_normalized
     tree_ = scipy.spatial.cKDTree(points_)
 
     #If radius closest point by sphere. With none knn
@@ -97,7 +159,8 @@ class ICVL(Dataset):
         25, 26, 27, 28, 29, 39, 40, 41, 42, 43, 44, 45, 46, 47,30, 31, 32, 33, 34,
         35, 36, 37, 38, 3, 4, 5, 6, 7, 8, 9, 10, 11]
 
-    labels = np.array(cloud['gt']['gt'][fingers_index]).reshape((16,3))
+    labels = np.matmul(np.array(cloud['gt']['gt'][fingers_index]).reshape((16,3)), components)/max_bb3d_len - offset
+    #labels = np.matmul(np.array(cloud['gt']['gt'][fingers_index]).reshape((16,3)), components) - offset
     graph_y_ = torch.tensor(labels, dtype=torch.float) #.view(-1)
 
     #FIX SIZE TODO delete
@@ -106,7 +169,7 @@ class ICVL(Dataset):
     graph_pos_ = torch.cat((graph_pos_, torch.zeros((diff,3))))
     #FIXED
 
-    data_ = DataHand(x = graph_x_, edge_index = graph_edge_index_, edge_attr=None, y=graph_y_, pos = graph_pos_, normal=None, face=None, rotate=None, length=None, offset=None)
+    data_ = DataHand(x = graph_x_, edge_index = graph_edge_index_, edge_attr=None, y=graph_y_, pos = graph_pos_, normal=None, face=None, rotate=torch.tensor(components), length=max_bb3d_len, offset=torch.tensor(offset))
     return data_
 
   def filter_outliers(self, cloud, stdev_threshold):
